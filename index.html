@@ -762,23 +762,27 @@
 </table>
 
 <script>
-const API_URL = 'https://script.google.com/macros/s/ВАШ_ID/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbxh08eekx-4JblJ-lcZ2wb4sRdy2MyiePQEwwt845Z9ak-JBZCR2ayTqZzsxYJ9lJvi/exec';
 
-async function fetchAndriiSales() {
-  const res = await fetch(API_URL);
+async function fetchManagerSales(manager) {
+  const url = `https://script.google.com/macros/s/AKfycbxh08eekx-4JblJ-lcZ2wb4sRdy2MyiePQEwwt845Z9ak-JBZCR2ayTqZzsxYJ9lJvi/exec`;
+  const res = await fetch(url);
   const data = await res.json();
   return data;
 }
 
-function renderAndriiTotal(salesData) {
-  // Сума по колонці "Всього, кв м"
+function renderManagerTotal(salesData, elementId) {
   const total = salesData.reduce((sum, row) => {
-    // Перевіряємо, що значення є і воно число
     const val = parseFloat((row['Всього, кв м'] || '0').toString().replace(',', '.'));
     return sum + (isNaN(val) ? 0 : val);
   }, 0);
-  document.querySelector('#andrii-sales').textContent = total.toLocaleString('uk-UA', {maximumFractionDigits: 3});
+  document.querySelector(`#${elementId}`).textContent = total.toLocaleString('uk-UA', {maximumFractionDigits: 3});
 }
 
-fetchAndriiSales().then(renderAndriiTotal);
+function showTab(tabId) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.getElementById(tabId).classList.add('active');
+  document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.tab[onclick="showTab('${tabId}')"]`).classList.add('active');
+}
 </script>
