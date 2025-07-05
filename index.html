@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система обліку стендів та продажів</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .tabs {
+            display: flex;
+            background: #ecf0f1;
+            border-bottom: 3px solid #3498db;
+        }
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            background: #bdc3c7;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .tab.active {
+            background: #3498db;
+            color: white;
+            transform: translateY(-2px);
+        }
+        .tab:hover:not(.active) {
+            background: #95a5a6;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+            padding: 25px;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .add-btn {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 10px 0;
+            transition: transform 0.2s ease;
+        }
+        .add-btn:hover {
+            transform: translateY(-2px);
+        }
+        .edit-btn {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s ease;
+        }
+        .edit-btn:hover {
+            transform: translateY(-2px);
+        }
+        .delete-btn {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-left: 5px;
+            transition: transform 0.2s ease;
+        }
+        .delete-btn:hover {
+            transform: translateY(-2px);
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 13px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .data-table th {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 600;
+            border-bottom: 2px solid #34495e;
+        }
+        .data-table td {
+            padding: 8px;
+            text-align: center;
+            border-bottom: 1px solid #ecf0f1;
+            transition: background 0.3s ease;
+        }
+        .data-table tr:hover {
+            background: #f8f9fa;
+        }
+        .modal-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            min-width: 350px;
+            max-width: 90vw;
+            position: relative;
+        }
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 18px;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+        .summary {
+            margin: 20px 0 0 0;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .filter-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .filter-row label {
+            font-size: 13px;
+        }
+        .filter-row select, .filter-row input {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏪 Система обліку стендів та продажів</h1>
+            <p>Облік стендів, переміщень і продажів по менеджерах</p>
+        </div>
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('andrii')">Андрій</button>
+            <button class="tab" onclick="showTab('roman')">Роман</button>
+            <button class="tab" onclick="showTab('pavlo')">Павло</button>
+            <button class="tab" onclick="showTab('sales')">Загальні продажі</button>
+            <button class="tab" onclick="showTab('analytics')">Порівняльна аналітика</button>
+            <button class="tab" onclick="showTab('goals')">Цілі та плани</button>
+        </div>
+        <div id="andrii" class="tab-content active"></div>
+        <div id="roman" class="tab-content"></div>
+        <div id="pavlo" class="tab-content"></div>
+        <div id="sales" class="tab-content"></div>
+        <div id="analytics" class="tab-content"></div>
+        <div id="goals" class="tab-content"></div>
+    </div>
+    <script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbwGl7KzTIDUvEL9V_zmg2HJQIwdPf1HBwvsvUGqnowmvqa9LIgkIO7v1QXW7xmPOb7a/exec';
+const SALES_SHEET = 'Продажі';
+const STANDS_SHEETS = [
+    {id: 'andrii', name: 'Андрій', sheet: 'Облік стендів(Андрій)'},
+    {id: 'roman', name: 'Роман', sheet: 'Облік стендів(Роман)'},
+    {id: 'pavlo', name: 'Павло', sheet: 'Облік стендів(Павло)'}
+];
+const STAND_NAMES = [
+    'Tarkett: Express',
+    'BerryAlloc: Carmelita Pureloc40',
+    'BerryAlloc New: Novocore Legacy',
+    'BerryAlloc: Smartline',
+    'IVC: Solida',
+    'IVC: Solida метал',
+    'IVC: Divino',
+    'IVC: Divino + Tarkett Express',
+    'XpertPro',
+    'ADO'
+];
+
+function showTab(tabId) {
+    document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(div => div.classList.remove('active'));
+    document.querySelector(`.tab[onclick*="${tabId}"]`).classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+    if (tabId === 'andrii') renderManagerSection('andrii');
+    if (tabId === 'roman') renderManagerSection('roman');
+    if (tabId === 'pavlo') renderManagerSection('pavlo');
+    if (tabId === 'sales') loadSalesTab();
+    if (tabId === 'analytics') renderAnalyticsTab();
+    if (tabId === 'goals') renderGoalsTab();
+}
+
+// --- Дані для менеджерів ---
+const MANAGERS = [
+    {id: 'andrii', name: 'Андрій Вовнянко', region: 'Київ та область', sheet: 'Облік стендів(Андрій)'},
+    {id: 'roman', name: 'Роман', region: '...', sheet: 'Облік стендів(Роман)'},
+    {id: 'pavlo', name: 'Павло', region: '...', sheet: 'Облік стендів(Павло)'}
+];
+
+// --- Рендер секції менеджера ---
+async function renderManagerSection(managerId) {
+    const manager = MANAGERS.find(m => m.id === managerId);
+    const tab = document.getElementById(managerId);
+    tab.innerHTML = '<div style="padding:32px 0;text-align:center;font-size:22px;">Завантаження...</div>';
+    // Завантажуємо стенди
+    const standsRes = await fetch(`${API_URL}?sheet=${encodeURIComponent(manager.sheet)}`);
+    const standsData = await standsRes.json();
+    // Завантажуємо продажі
+    const salesRes = await fetch(`${API_URL}?sheet=${encodeURIComponent(SALES_SHEET)}`);
+    const salesData = await salesRes.json();
+    // Фільтруємо продажі по менеджеру
+    const salesHeaders = salesData[0];
+    const salesRows = salesData.slice(1).filter(r => r[salesHeaders.indexOf('Менеджер')] === manager.name.split(' ')[0]);
+    // Метрики
+    const ttCount = standsData.length-1;
+    const salesSum = salesRows.reduce((sum, r) => sum + (parseFloat((r[salesHeaders.findIndex(h=>h.toLowerCase().includes('м²'))]||'0').toString().replace(',','.'))||0), 0);
+    const avgTT = ttCount ? (salesSum/ttCount) : 0;
+    // Цілі (заглушки)
+    const planSales = 400;
+    const planTT = 20;
+    const planStands = 50;
+    // Сумарно стендів
+    let standTotal = 0;
+    const standIdxs = STAND_NAMES.map(name => standsData[0].findIndex(h => h.trim().toLowerCase() === name.trim().toLowerCase()));
+    for (let i=1; i<standsData.length; i++) {
+        standIdxs.forEach(idx => { if(idx!==-1) standTotal += parseFloat(standsData[i][idx]||0) });
+    }
+    // Прогресбари
+    const salesPercent = Math.round(salesSum/planSales*100);
+    const ttPercent = Math.round(ttCount/planTT*100);
+    const standsPercent = Math.round(standTotal/planStands*100);
+    // HTML
+    tab.innerHTML = `
+        <div style="background:linear-gradient(90deg,#fcb1e2,#a1c4fd);padding:32px 24px 24px 24px;border-radius:18px;margin-bottom:24px;position:relative;">
+            <div style="font-size:2.2em;font-weight:700;">👨‍💼 ${manager.name}</div>
+            <div style="margin:8px 0 0 0;"><button style="background:#2196f3;color:#fff;border:none;padding:6px 18px;border-radius:8px;font-size:1em;">${manager.region}</button></div>
+            <div style="position:absolute;top:24px;right:24px;display:flex;gap:18px;">
+                <div style="background:rgba(255,255,255,0.3);border-radius:12px;padding:12px 24px;text-align:center;">
+                    <div style="font-size:1.5em;font-weight:700;">${ttCount}</div>
+                    <div style="font-size:1em;">Торгових точок</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.3);border-radius:12px;padding:12px 24px;text-align:center;">
+                    <div style="font-size:1.5em;font-weight:700;">${salesSum.toLocaleString('uk-UA',{maximumFractionDigits:2})}</div>
+                    <div style="font-size:1em;">Продажі (кв м)</div>
+                </div>
+                <div style="background:rgba(255,255,255,0.3);border-radius:12px;padding:12px 24px;text-align:center;">
+                    <div style="font-size:1.5em;font-weight:700;">${avgTT.toLocaleString('uk-UA',{maximumFractionDigits:2})}</div>
+                    <div style="font-size:1em;">Середня ТТ</div>
+                </div>
+            </div>
+        </div>
+        <div style="background:linear-gradient(90deg,#e0eafc,#cfdef3);padding:24px 18px 18px 18px;border-radius:18px;margin-bottom:24px;">
+            <div style="font-size:1.3em;font-weight:600;margin-bottom:18px;">🎯 Цілі на поточний місяць</div>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;">
+                <div style="flex:1 1 200px;background:#fff;border-radius:12px;padding:18px 18px 12px 18px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+                    <div style="font-weight:600;">Продажі</div>
+                    <div style="background:#e0e0e0;border-radius:8px;height:18px;margin:8px 0 6px 0;overflow:hidden;">
+                        <div style="background:linear-gradient(90deg,#43e97b,#38f9d7);height:100%;width:${salesPercent}%;color:#fff;text-align:center;font-weight:700;line-height:18px;">${salesPercent}%</div>
+                    </div>
+                    <div style="font-size:0.95em;">${salesSum.toLocaleString('uk-UA',{maximumFractionDigits:2})} кв м / ${planSales.toLocaleString('uk-UA')} кв м</div>
+                </div>
+                <div style="flex:1 1 200px;background:#fff;border-radius:12px;padding:18px 18px 12px 18px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+                    <div style="font-weight:600;">Нові ТТ</div>
+                    <div style="background:#e0e0e0;border-radius:8px;height:18px;margin:8px 0 6px 0;overflow:hidden;">
+                        <div style="background:linear-gradient(90deg,#43e97b,#38f9d7);height:100%;width:${ttPercent}%;color:#fff;text-align:center;font-weight:700;line-height:18px;">${ttPercent}%</div>
+                    </div>
+                    <div style="font-size:0.95em;">${ttCount} / ${planTT} торгових точок</div>
+                </div>
+                <div style="flex:1 1 200px;background:#fff;border-radius:12px;padding:18px 18px 12px 18px;box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+                    <div style="font-weight:600;">Стенди</div>
+                    <div style="background:#e0e0e0;border-radius:8px;height:18px;margin:8px 0 6px 0;overflow:hidden;">
+                        <div style="background:linear-gradient(90deg,#43e97b,#38f9d7);height:100%;width:${standsPercent}%;color:#fff;text-align:center;font-weight:700;line-height:18px;">${standsPercent}%</div>
+                    </div>
+                    <div style="font-size:0.95em;">${standTotal} / ${planStands} стендів</div>
+                </div>
+            </div>
+        </div>
+        <div style="margin-bottom:18px;font-size:1.1em;font-weight:600;">Облік стендів</div>
+        <div id="stands-table-${managerId}"></div>
+        <div style="margin:24px 0 12px 0;font-size:1.1em;font-weight:600;">Продажі</div>
+        <div id="sales-table-${managerId}"></div>
+    `;
+    // Рендеримо таблиці стендів і продажів
+    renderStandsTable(standsData, `stands-table-${managerId}`);
+    renderSalesTableForManager(salesHeaders, salesRows, `sales-table-${managerId}`);
+}
+
+// --- Рендер таблиці стендів ---
+function renderStandsTable(data, containerId) {
+    if (!data || !data.length) {
+        document.getElementById(containerId).innerHTML = '<p>Даних немає</p>';
+        return;
+    }
+    let html = '<table class="data-table"><thead><tr>';
+    data[0].forEach(h => html += `<th>${h}</th>`);
+    html += '</tr></thead><tbody>';
+    for (let i = 1; i < data.length; i++) {
+        html += '<tr>';
+        data[i].forEach(cell => html += `<td>${cell}</td>`);
+        html += '</tr>';
+    }
+    html += '</tbody></table>';
+    document.getElementById(containerId).innerHTML = html;
+}
+
+// --- Рендер таблиці продажів для менеджера ---
+function renderSalesTableForManager(headers, rows, containerId) {
+    if (!rows || !rows.length) {
+        document.getElementById(containerId).innerHTML = '<p>Даних немає</p>';
+        return;
+    }
+    let html = '<table class="data-table"><thead><tr>';
+    headers.forEach(h => html += `<th>${h}</th>`);
+    html += '</tr></thead><tbody>';
+    rows.forEach(row => {
+        html += '<tr>';
+        row.forEach(cell => html += `<td>${cell}</td>`);
+        html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById(containerId).innerHTML = html;
+}
+
+// --- Загальні продажі ---
+let salesData = [];
+let salesHeaders = [];
+let salesFilters = {manager: '', month: '', stand: '', shop: ''};
+
+async function loadSalesTab() {
+    const tab = document.getElementById('sales');
+    tab.innerHTML = '<div id="sales-summary"></div><div class="filter-row" id="sales-filters"></div><div id="sales-table"></div>';
+    try {
+        const res = await fetch(`${API_URL}?sheet=${encodeURIComponent(SALES_SHEET)}`);
+        const data = await res.json();
+        salesData = data;
+        salesHeaders = data[0];
+        renderSalesFilters();
+        renderSalesTable();
+        renderSalesSummary();
+    } catch (e) {
+        document.getElementById('sales-table').innerHTML = '<p>Помилка завантаження</p>';
+    }
+}
+
+function renderSalesFilters() {
+    const managers = Array.from(new Set(salesData.slice(1).map(r => r[salesHeaders.indexOf('Менеджер')])));
+    const months = Array.from(new Set(salesData.slice(1).map(r => r[salesHeaders.indexOf('Місяць')])));
+    const stands = Array.from(new Set(salesData.slice(1).map(r => r[salesHeaders.indexOf('Стенд')])));
+    const shops = Array.from(new Set(salesData.slice(1).map(r => r[salesHeaders.indexOf('Торгова точка')])));
+    let html = '';
+    html += `<label>Менеджер: <select onchange="setSalesFilter('manager', this.value)"><option value="">Всі</option>${managers.map(m=>`<option value="${m}">${m}</option>`)}</select></label>`;
+    html += `<label>Місяць: <select onchange="setSalesFilter('month', this.value)"><option value="">Всі</option>${months.map(m=>`<option value="${m}">${m}</option>`)}</select></label>`;
+    html += `<label>Стенд: <select onchange="setSalesFilter('stand', this.value)"><option value="">Всі</option>${stands.map(m=>`<option value="${m}">${m}</option>`)}</select></label>`;
+    html += `<label>Торгова точка: <select onchange="setSalesFilter('shop', this.value)"><option value="">Всі</option>${shops.map(m=>`<option value="${m}">${m}</option>`)}</select></label>`;
+    document.getElementById('sales-filters').innerHTML = html;
+}
+function setSalesFilter(key, value) {
+    salesFilters[key] = value;
+    renderSalesTable();
+    renderSalesSummary();
+}
+
+function getFilteredSales() {
+    return salesData.slice(1).filter(row => {
+        if (salesFilters.manager && row[salesHeaders.indexOf('Менеджер')] !== salesFilters.manager) return false;
+        if (salesFilters.month && row[salesHeaders.indexOf('Місяць')] !== salesFilters.month) return false;
+        if (salesFilters.stand && row[salesHeaders.indexOf('Стенд')] !== salesFilters.stand) return false;
+        if (salesFilters.shop && row[salesHeaders.indexOf('Торгова точка')] !== salesFilters.shop) return false;
+        return true;
+    });
+}
+
+function renderSalesTable() {
+    const filtered = getFilteredSales();
+    let html = '<button class="add-btn" onclick="openSalesModal(null)">Додати</button>';
+    html += '<table class="data-table"><thead><tr>';
+    salesHeaders.forEach(h => html += `<th>${h}</th>`);
+    html += '<th>Дії</th></tr></thead><tbody>';
+    filtered.forEach((row, i) => {
+        html += '<tr>';
+        row.forEach(cell => html += `<td>${cell}</td>`);
+        html += `<td><button class='edit-btn' onclick="openSalesModal(${i})">Редагувати</button><button class='delete-btn' onclick="deleteSalesRow(${i})">Видалити</button></td>`;
+        html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('sales-table').innerHTML = html;
+}
+
+function renderSalesSummary() {
+    const filtered = getFilteredSales();
+    const idxManager = salesHeaders.indexOf('Менеджер');
+    const idxMonth = salesHeaders.indexOf('Місяць');
+    const idxStand = salesHeaders.indexOf('Стенд');
+    const idxShop = salesHeaders.indexOf('Торгова точка');
+    const idxSales = salesHeaders.findIndex(h=>h.toLowerCase().includes('м²'));
+    // Загальна сума
+    let total = 0;
+    filtered.forEach(r => {
+        const val = parseFloat((idxSales!==-1?r[idxSales]:0).toString().replace(',','.'));
+        if (!isNaN(val)) total += val;
+    });
+    // По менеджерах
+    let byManager = {};
+    filtered.forEach(r => {
+        const m = r[idxManager];
+        const val = parseFloat((idxSales!==-1?r[idxSales]:0).toString().replace(',','.'));
+        if (!isNaN(val)) byManager[m] = (byManager[m]||0) + val;
+    });
+    // По місяцях
+    let byMonth = {};
+    filtered.forEach(r => {
+        const m = r[idxMonth];
+        const val = parseFloat((idxSales!==-1?r[idxSales]:0).toString().replace(',','.'));
+        if (!isNaN(val)) byMonth[m] = (byMonth[m]||0) + val;
+    });
+    // По стендах
+    let byStand = {};
+    filtered.forEach(r => {
+        const m = r[idxStand];
+        const val = parseFloat((idxSales!==-1?r[idxSales]:0).toString().replace(',','.'));
+        if (!isNaN(val)) byStand[m] = (byStand[m]||0) + val;
+    });
+    // По торгових точках
+    let byShop = {};
+    filtered.forEach(r => {
+        const m = r[idxShop];
+        const val = parseFloat((idxSales!==-1?r[idxSales]:0).toString().replace(',','.'));
+        if (!isNaN(val)) byShop[m] = (byShop[m]||0) + val;
+    });
+    let html = `<div class="summary">Всього: <b>${total.toLocaleString('uk-UA', {maximumFractionDigits:2})} м²</b></div>`;
+    html += `<div class="summary">По менеджерах: ${Object.entries(byManager).map(([k,v])=>`${k}: <b>${v.toLocaleString('uk-UA', {maximumFractionDigits:2})}</b>`).join(' | ')}</div>`;
+    html += `<div class="summary">По місяцях: ${Object.entries(byMonth).map(([k,v])=>`${k}: <b>${v.toLocaleString('uk-UA', {maximumFractionDigits:2})}</b>`).join(' | ')}</div>`;
+    html += `<div class="summary">По стендах: ${Object.entries(byStand).map(([k,v])=>`${k}: <b>${v.toLocaleString('uk-UA', {maximumFractionDigits:2})}</b>`).join(' | ')}</div>`;
+    html += `<div class="summary">По торгових точках: ${Object.entries(byShop).map(([k,v])=>`${k}: <b>${v.toLocaleString('uk-UA', {maximumFractionDigits:2})}</b>`).join(' | ')}</div>`;
+    document.getElementById('sales-summary').innerHTML = html;
+}
+
+// --- Модальна форма для продажів ---
+function openSalesModal(rowIdx) {
+    closeModal();
+    const modalBg = document.createElement('div');
+    modalBg.className = 'modal-bg';
+    modalBg.innerHTML = `<div class='modal'><button class='modal-close' onclick='closeModal()'>✖</button><h2>${rowIdx===null?'Додати':'Редагувати'}</h2><form id='modal-form'></form></div>`;
+    document.body.appendChild(modalBg);
+    let values = rowIdx!==null ? getFilteredSales()[rowIdx] : Array(salesHeaders.length).fill('');
+    let formHtml = '';
+    salesHeaders.forEach((h,i)=>{
+        formHtml += `<div style='margin-bottom:10px;'><label>${h}<br><input name='f${i}' type='text' value='${values[i]||''}' style='width:100%;padding:6px;border-radius:4px;border:1px solid #ccc;'></label></div>`;
+    });
+    formHtml += `<button type='submit' class='add-btn' style='width:100%;margin-top:20px;'>Зберегти</button>`;
+    document.getElementById('modal-form').innerHTML = formHtml;
+    document.getElementById('modal-form').onsubmit = async function(e) {
+        e.preventDefault();
+        const formData = Array.from(this.elements).filter(el=>el.name).map(el=>el.value);
+        if (rowIdx===null) {
+            await fetch(API_URL, {
+                method:'POST',
+                body: JSON.stringify({action:'add', sheet:SALES_SHEET, data:formData}),
+                headers: {'Content-Type':'application/json'}
+            });
+        } else {
+            // Знаходимо абсолютний індекс у salesData
+            const absIdx = salesData.findIndex((row, i) => {
+                if (i === 0) return false;
+                return getFilteredSales()[rowIdx] === row;
+            });
+            await fetch(API_URL, {
+                method:'POST',
+                body: JSON.stringify({action:'edit', sheet:SALES_SHEET, row:absIdx, data:formData}),
+                headers: {'Content-Type':'application/json'}
+            });
+        }
+        closeModal();
+        loadSalesTab();
+    };
+}
+function closeModal() {
+    const modal = document.querySelector('.modal-bg');
+    if (modal) modal.remove();
+}
+
+// --- Видалення продажу ---
+async function deleteSalesRow(rowIdx) {
+    if (!confirm('Ви впевнені, що хочете видалити цей рядок?')) return;
+    // Знаходимо абсолютний індекс у salesData
+    const absIdx = salesData.findIndex((row, i) => {
+        if (i === 0) return false;
+        return getFilteredSales()[rowIdx] === row;
+    });
+    await fetch(API_URL, {
+        method:'POST',
+        body: JSON.stringify({action:'delete', sheet:SALES_SHEET, row:absIdx}),
+        headers: {'Content-Type':'application/json'}
+    });
+    loadSalesTab();
+}
+
+// --- Порівняльна аналітика та цілі/плани ---
+function renderAnalyticsTab() {
+    document.getElementById('analytics').innerHTML = '<div style="padding:32px 0;text-align:center;font-size:22px;">Порівняльна аналітика (у розробці)</div>';
+}
+
+// --- API для планів ---
+// Google Apps Script має підтримувати action: 'getPlans' (GET) і 'setPlan' (POST)
+//
+// function doGet(e) {
+//   if (e.parameter.action === 'getPlans') {
+//     // Зчитати всі рядки з аркуша "Плани" і повернути як масив об'єктів
+//   }
+// }
+// function doPost(e) {
+//   if (e.parameter.action === 'setPlan') {
+//     // Оновити/додати план для менеджера
+//   }
+// }
+
+// --- JS ---
+let managerPlans = {};
+
+async function loadPlans() {
+  const res = await fetch(`${API_URL}?action=getPlans`);
+  const data = await res.json();
+  managerPlans = {};
+  data.forEach(row => {
+    managerPlans[row['Менеджер']] = {
+      sales: Number(row['План продажів']) || 0,
+      tt: Number(row['План нових ТТ']) || 0,
+      stands: Number(row['План стендів']) || 0
+    };
+  });
+}
+
+async function savePlan(manager, sales, tt, stands) {
+  const params = new URLSearchParams();
+  params.append('action', 'setPlan');
+  params.append('manager', manager);
+  params.append('sales', sales);
+  params.append('tt', tt);
+  params.append('stands', stands);
+
+  await fetch(API_URL, {
+    method: 'POST',
+    body: params
+  });
+  await loadPlans();
+  // Оновити цілі у дашборді, якщо треба
+}
+
+function renderGoalsTab() {
+  const tab = document.getElementById('goals');
+  tab.innerHTML = '<div style="font-size:1.5em;font-weight:600;margin-bottom:18px;">Плани і цілі менеджерів</div>';
+  MANAGERS.forEach(m => {
+    const plan = managerPlans[m.name] || {sales: '', tt: '', stands: ''};
+    tab.innerHTML += `
+      <div style="background:#f7f7fa;padding:18px 18px 12px 18px;border-radius:12px;margin-bottom:18px;max-width:420px;">
+        <div style="font-size:1.1em;font-weight:600;margin-bottom:8px;">${m.name}</div>
+        <form onsubmit="event.preventDefault(); savePlanForm('${m.name}')" id="plan-form-${m.id}">
+          <label>План продажів (кв м): <input type="number" name="sales" value="${plan.sales}" style="width:100px;margin-right:12px;"></label>
+          <label>Нові ТТ: <input type="number" name="tt" value="${plan.tt}" style="width:60px;margin-right:12px;"></label>
+          <label>Стенди: <input type="number" name="stands" value="${plan.stands}" style="width:60px;"></label>
+          <button type="submit" style="margin-left:16px;">Зберегти</button>
+        </form>
+      </div>
+    `;
+  });
+}
+
+window.savePlanForm = async function(managerName) {
+  const m = MANAGERS.find(x => x.name === managerName);
+  const form = document.getElementById(`plan-form-${m.id}`);
+  const sales = form.sales.value;
+  const tt = form.tt.value;
+  const stands = form.stands.value;
+  await savePlan(managerName, sales, tt, stands);
+  alert('План збережено!');
+  renderGoalsTab();
+}
+
+// --- При старті ---
+document.addEventListener('DOMContentLoaded', async () => {
+  await loadPlans();
+  renderManagerSection('andrii');
+});
+    </script>
+</body>
+</html>

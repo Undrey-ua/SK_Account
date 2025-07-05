@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Система обліку стендів та продажів</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+        .tabs {
+            display: flex;
+            background: #ecf0f1;
+            border-bottom: 3px solid #3498db;
+        }
+        .tab {
+            flex: 1;
+            padding: 15px 20px;
+            background: #bdc3c7;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .tab.active {
+            background: #3498db;
+            color: white;
+            transform: translateY(-2px);
+        }
+        .tab:hover:not(.active) {
+            background: #95a5a6;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+            padding: 25px;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .add-btn {
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            margin: 10px 0;
+            transition: transform 0.2s ease;
+        }
+        .add-btn:hover {
+            transform: translateY(-2px);
+        }
+        .edit-btn {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s ease;
+        }
+        .edit-btn:hover {
+            transform: translateY(-2px);
+        }
+        .delete-btn {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-left: 5px;
+            transition: transform 0.2s ease;
+        }
+        .delete-btn:hover {
+            transform: translateY(-2px);
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 13px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .data-table th {
+            background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+            color: white;
+            padding: 12px 8px;
+            text-align: center;
+            font-weight: 600;
+            border-bottom: 2px solid #34495e;
+        }
+        .data-table td {
+            padding: 8px;
+            text-align: center;
+            border-bottom: 1px solid #ecf0f1;
+            transition: background 0.3s ease;
+        }
+        .data-table tr:hover {
+            background: #f8f9fa;
+        }
+        .modal-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(0,0,0,0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            min-width: 350px;
+            max-width: 90vw;
+            position: relative;
+        }
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 18px;
+            background: none;
+            border: none;
+            cursor: pointer;
+        }
+        .summary {
+            margin: 20px 0 0 0;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .filter-row {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .filter-row label {
+            font-size: 13px;
+        }
+        .filter-row select, .filter-row input {
+            padding: 4px 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏪 Система обліку стендів та продажів</h1>
+            <p>Облік стендів, переміщень і продажів по менеджерах</p>
+        </div>
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('stands')">🗂 Облік стендів</button>
+            <button class="tab" onclick="showTab('sales')">📈 Продажі</button>
+        </div>
+        <div id="stands" class="tab-content active"></div>
+        <div id="sales" class="tab-content"></div>
+    </div>
+    <script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbwSk31RkdE-ZTWbQF1wKBHKgS5_qRoWJ61z1Mxbe39KmG4s5D4yidUzyvP2z4ZrkUcO/exec';
+const SALES_SHEET = 'Продажі';
+const STANDS_SHEETS = [
+    {id: 'andrii', name: 'Андрій', sheet: 'Облік стендів(Андрій)'},
+    {id: 'roman', name: 'Роман', sheet: 'Облік стендів(Роман)'},
+    {id: 'pavlo', name: 'Павло', sheet: 'Облік стендів(Павло)'}
+];
+const STAND_NAMES = [
+    'Tarkett: Express',
+    'BerryAlloc: Carmelita Pureloc40',
+    'BerryAlloc New: Novocore Legacy',
+    'BerryAlloc: Smartline',
+    'IVC: Solida',
+    'IVC: Solida метал',
+    'IVC: Divino',
+    'IVC: Divino + Tarkett Express',
+    'XpertPro',
+    'ADO'
+];
+
+function showTab(tabId) {
+    document.querySelectorAll('.tab').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(div => div.classList.remove('active'));
+    document.querySelector(`.tab[onclick*="${tabId}"]`).classList.add('active');
+    document.getElementById(tabId).classList.add('active');
+    if (tabId === 'stands') loadStandsTab();
+    if (tabId === 'sales') loadSalesTab();
+}
+
+// --- Облік стендів ---
+async function loadStandsTab() {
+    const tab = document.getElementById('stands');
+    tab.innerHTML = '';
+    for (const manager of STANDS_SHEETS) {
+        tab.innerHTML += `<h2>${manager.name}</h2><div id="stands-${manager.id}"></div>`;
+    }
+    for (const manager of STANDS_SHEETS) {
+        loadStandsTable(manager);
+    }
+}
+async function loadStandsTable(manager) {
+    const container = document.getElementById(`stands-${manager.id}`);
+    container.innerHTML = 'Завантаження...';
+    try {
+        const res = await fetch(`${API_URL}?sheet=${encodeURIComponent(manager.sheet)}`);
+        const data = await res.json();
+        console.log('DATA FOR', manager.name, data);
+        if (!data || !data.length) {
+            container.innerHTML = '<p>Даних немає</p>';
+            return;
+        }
+        console.log('Заголовки для', manager.name, data[0]);
+        console.log('Дані для', manager.name, JSON.stringify(data, null, 2));
+        // Підрахунок підсумків по кожному виду стенду
+        let sums = Array(STAND_NAMES.length).fill(0);
+        const headerIdx = STAND_NAMES.map(name => {
+            const idx = data[0].findIndex(h => 
+                typeof h === 'string' && h.trim().toLowerCase() === name.trim().toLowerCase()
+            );
+            if (idx === -1) {
+                console.warn(`Не знайдено колонку для стенду "${name}" у вкладці "${manager.sheet}". Поточні заголовки:`, data[0]);
+            }
+            return idx;
+        });
+        for (let i = 1; i < data.length; i++) {
+            console.log('Рядок для відображення', manager.name, data[i]);
+            headerIdx.forEach((idx, j) => {
+                if (idx !== -1) {
+                    const valRaw = data[i][idx];
+                    const val = (valRaw === "" || valRaw == null || valRaw === "0" || valRaw === 0) ? 0 : parseFloat(valRaw.toString().replace(',','.'));
+                    if (isNaN(val)) {
+                        console.warn('Некоректне значення для підрахунку стенду:', valRaw, 'у', manager.name, 'рядок', i, 'колонка', j);
+                    } else {
+                        sums[j] += val;
+                    }
+                }
+            });
+        }
+        let summary = '<div class="summary">Стенди:<br>';
+        summary += STAND_NAMES.map((name, i) => `${name} — ${sums[i]}`).join('<br>');
+        summary += '</div>';
+        let html = summary + '<table class="data-table"><thead><tr>';
+        data[0].forEach(h => html += `<th>${h}</th>`);
+        html += '</tr></thead><tbody>';
+        for (let i = 1; i < data.length; i++) {
+            // if (data[i].every(cell => !cell || cell === "")) continue;
+            html += '<tr>';
+            data[i].forEach(cell => html += `<td>${cell}</td>`);
+            html += '</tr>';
+        }
+        html += '</tbody></table>';
+        console.log('HTML for', manager.name, html);
+        container.innerHTML = html;
+    } catch (e) {
+        container.innerHTML = '<p>Помилка завантаження</p>';
+        console.error('Помилка для', manager.name, e);
+    }
+}
+
+// --- Продажі ---
+let salesData = [];
+let salesHeaders = [];
+let salesFilters = {manager: '', month: '', stand: '', shop: ''};
+
+async function loadSalesTab() {
+    const tab = document.getElementById('sales');
+    tab.innerHTML = '<div id="sales-summary"></div><div class="filter-row" id="sales-filters"></div><div id="sales-table"></div>';
+    try {
+        const res = await fetch(`${API_URL}?sheet=${encodeURIComponent(SALES_SHEET)}`);
+        const data = await res.json();
+        salesData = data;
+        salesHeaders = data[0];
+        renderSalesFilters();
+        renderSalesTable();
+        renderSalesSummary();
+    } catch (e) {
+        document.getElementById('sales-table').innerHTML = '<p>Помилка завантаження</p>';
+    }
+}
+
+function renderSalesFilters() {
+    const managers = Array.from(new Set(salesData.slice(1).map(r => r[salesHeaders.indexOf('Менеджер')])));
+    const months = Array.from(new Set(salesData.slice(1).map(r => r[salesHeaders.indexOf('Місяць')])));
+    const stands = Array.from(new Set(salesData.slice(1).map(r => r[salesHeaders.indexOf('Стенд')])));
+    const shops = Array.from(new Set(salesData.slice(1).map(r => r[salesHeaders.indexOf('Торгова точка')])));
+    let html = '';
+    html += `<label>Менеджер: <select onchange="setSalesFilter('manager', this.value)"><option value="">Всі</option>${managers.map(m=>`<option value="${m}">${m}</option>`)}</select></label>`;
+    html += `<label>Місяць: <select onchange="setSalesFilter('month', this.value)"><option value="">Всі</option>${months.map(m=>`<option value="${m}">${m}</option>`)}</select></label>`;
+    html += `<label>Стенд: <select onchange="setSalesFilter('stand', this.value)"><option value="">Всі</option>${stands.map(m=>`<option value="${m}">${m}</option>`)}</select></label>`;
+    html += `<label>Торгова точка: <select onchange="setSalesFilter('shop', this.value)"><option value="">Всі</option>${shops.map(m=>`<option value="${m}">${m}</option>`)}</select></label>`;
+    document.getElementById('sales-filters').innerHTML = html;
+}
+function setSalesFilter(key, value) {
+    salesFilters[key] = value;
+    renderSalesTable();
+    renderSalesSummary();
+}
+
+function getFilteredSales() {
+    return salesData.slice(1).filter(row => {
+        if (salesFilters.manager && row[salesHeaders.indexOf('Менеджер')] !== salesFilters.manager) return false;
+        if (salesFilters.month && row[salesHeaders.indexOf('Місяць')] !== salesFilters.month) return false;
+        if (salesFilters.stand && row[salesHeaders.indexOf('Стенд')] !== salesFilters.stand) return false;
+        if (salesFilters.shop && row[salesHeaders.indexOf('Торгова точка')] !== salesFilters.shop) return false;
+        return true;
+    });
+}
+
+function renderSalesTable() {
+    const filtered = getFilteredSales();
+    let html = '<button class="add-btn" onclick="openSalesModal(null)">Додати</button>';
+    html += '<table class="data-table"><thead><tr>';
+    salesHeaders.forEach(h => html += `<th>${h}</th>`);
+    html += '<th>Дії</th></tr></thead><tbody>';
+    filtered.forEach((row, i) => {
+        html += '<tr>';
+        row.forEach(cell => html += `<td>${cell}</td>`);
+        html += `<td><button class='edit-btn' onclick="openSalesModal(${i})">Редагувати</button><button class='delete-btn' onclick="deleteSalesRow(${i})">Видалити</button></td>`;
+        html += '</tr>';
+    });
+    html += '</tbody></table>';
+    document.getElementById('sales-table').innerHTML = html;
+}
+
+function renderSalesSummary() {
+    const filtered = getFilteredSales();
+    const idxManager = salesHeaders.indexOf('Менеджер');
+    const idxMonth = salesHeaders.indexOf('Місяць');
+    const idxStand = salesHeaders.indexOf('Стенд');
+    const idxShop = salesHeaders.indexOf('Торгова точка');
+    const idxSales = salesHeaders.findIndex(h=>h.toLowerCase().includes('м²'));
+    // Загальна сума
+    let total = 0;
+    filtered.forEach(r => {
+        const val = parseFloat((idxSales!==-1?r[idxSales]:0).toString().replace(',','.'));
+        if (!isNaN(val)) total += val;
+    });
+    // По менеджерах
+    let byManager = {};
+    filtered.forEach(r => {
+        const m = r[idxManager];
+        const val = parseFloat((idxSales!==-1?r[idxSales]:0).toString().replace(',','.'));
+        if (!isNaN(val)) byManager[m] = (byManager[m]||0) + val;
+    });
+    // По місяцях
+    let byMonth = {};
+    filtered.forEach(r => {
+        const m = r[idxMonth];
+        const val = parseFloat((idxSales!==-1?r[idxSales]:0).toString().replace(',','.'));
+        if (!isNaN(val)) byMonth[m] = (byMonth[m]||0) + val;
+    });
+    // По стендах
+    let byStand = {};
+    filtered.forEach(r => {
+        const m = r[idxStand];
+        const val = parseFloat((idxSales!==-1?r[idxSales]:0).toString().replace(',','.'));
+        if (!isNaN(val)) byStand[m] = (byStand[m]||0) + val;
+    });
+    // По торгових точках
+    let byShop = {};
+    filtered.forEach(r => {
+        const m = r[idxShop];
+        const val = parseFloat((idxSales!==-1?r[idxSales]:0).toString().replace(',','.'));
+        if (!isNaN(val)) byShop[m] = (byShop[m]||0) + val;
+    });
+    let html = `<div class="summary">Всього: <b>${total.toLocaleString('uk-UA', {maximumFractionDigits:2})} м²</b></div>`;
+    html += `<div class="summary">По менеджерах: ${Object.entries(byManager).map(([k,v])=>`${k}: <b>${v.toLocaleString('uk-UA', {maximumFractionDigits:2})}</b>`).join(' | ')}</div>`;
+    html += `<div class="summary">По місяцях: ${Object.entries(byMonth).map(([k,v])=>`${k}: <b>${v.toLocaleString('uk-UA', {maximumFractionDigits:2})}</b>`).join(' | ')}</div>`;
+    html += `<div class="summary">По стендах: ${Object.entries(byStand).map(([k,v])=>`${k}: <b>${v.toLocaleString('uk-UA', {maximumFractionDigits:2})}</b>`).join(' | ')}</div>`;
+    html += `<div class="summary">По торгових точках: ${Object.entries(byShop).map(([k,v])=>`${k}: <b>${v.toLocaleString('uk-UA', {maximumFractionDigits:2})}</b>`).join(' | ')}</div>`;
+    document.getElementById('sales-summary').innerHTML = html;
+}
+
+// --- Модальна форма для продажів ---
+function openSalesModal(rowIdx) {
+    closeModal();
+    const modalBg = document.createElement('div');
+    modalBg.className = 'modal-bg';
+    modalBg.innerHTML = `<div class='modal'><button class='modal-close' onclick='closeModal()'>✖</button><h2>${rowIdx===null?'Додати':'Редагувати'}</h2><form id='modal-form'></form></div>`;
+    document.body.appendChild(modalBg);
+    let values = rowIdx!==null ? getFilteredSales()[rowIdx] : Array(salesHeaders.length).fill('');
+    let formHtml = '';
+    salesHeaders.forEach((h,i)=>{
+        formHtml += `<div style='margin-bottom:10px;'><label>${h}<br><input name='f${i}' type='text' value='${values[i]||''}' style='width:100%;padding:6px;border-radius:4px;border:1px solid #ccc;'></label></div>`;
+    });
+    formHtml += `<button type='submit' class='add-btn' style='width:100%;margin-top:20px;'>Зберегти</button>`;
+    document.getElementById('modal-form').innerHTML = formHtml;
+    document.getElementById('modal-form').onsubmit = async function(e) {
+        e.preventDefault();
+        const formData = Array.from(this.elements).filter(el=>el.name).map(el=>el.value);
+        if (rowIdx===null) {
+            await fetch(API_URL, {
+                method:'POST',
+                body: JSON.stringify({action:'add', sheet:SALES_SHEET, data:formData}),
+                headers: {'Content-Type':'application/json'}
+            });
+        } else {
+            // Знаходимо абсолютний індекс у salesData
+            const absIdx = salesData.findIndex((row, i) => {
+                if (i === 0) return false;
+                return getFilteredSales()[rowIdx] === row;
+            });
+            await fetch(API_URL, {
+                method:'POST',
+                body: JSON.stringify({action:'edit', sheet:SALES_SHEET, row:absIdx, data:formData}),
+                headers: {'Content-Type':'application/json'}
+            });
+        }
+        closeModal();
+        loadSalesTab();
+    };
+}
+function closeModal() {
+    const modal = document.querySelector('.modal-bg');
+    if (modal) modal.remove();
+}
+
+// --- Видалення продажу ---
+async function deleteSalesRow(rowIdx) {
+    if (!confirm('Ви впевнені, що хочете видалити цей рядок?')) return;
+    // Знаходимо абсолютний індекс у salesData
+    const absIdx = salesData.findIndex((row, i) => {
+        if (i === 0) return false;
+        return getFilteredSales()[rowIdx] === row;
+    });
+    await fetch(API_URL, {
+        method:'POST',
+        body: JSON.stringify({action:'delete', sheet:SALES_SHEET, row:absIdx}),
+        headers: {'Content-Type':'application/json'}
+    });
+    loadSalesTab();
+}
+
+// --- Ініціалізація ---
+document.addEventListener('DOMContentLoaded', () => {
+    loadStandsTab();
+    loadSalesTab();
+});
+    </script>
+</body>
+</html>
