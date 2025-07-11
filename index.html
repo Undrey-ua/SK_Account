@@ -569,11 +569,31 @@
             <div style="background:white; padding:30px; border-radius:10px; min-width:300px; max-width:90vw;">
                 <h3 id="modal-title">Додати продаж</h3>
                 <form id="modal-form">
-                    <div><label>Торгова точка:<br><input name="shop" required></label></div>
-                    <div><label>Стенд:<br><input name="stand"></label></div>
-                    <div><label>Продажі (кв м):<br><input name="sales" type="number" step="0.001" required></label></div>
-                    <div><label>Дата:<br><input name="date" type="date" required></label></div>
-                    <div><label>Коментар:<br><input name="comment"></label></div>
+                    <div>
+                        <label>Торгова точка:<br>
+                            <select name="shop" id="modal-shop-select" required></select>
+                        </label>
+                    </div>
+                    <div>
+                        <label>Стенд:<br>
+                            <select name="stand" id="modal-stand-select" required></select>
+                        </label>
+                    </div>
+                    <div>
+                        <label>Продажі (кв м):<br>
+                            <input name="sales" type="number" step="0.001" required>
+                        </label>
+                    </div>
+                    <div>
+                        <label>Дата:<br>
+                            <input name="date" type="date" required>
+                        </label>
+                    </div>
+                    <div>
+                        <label>Коментар:<br>
+                            <input name="comment">
+                        </label>
+                    </div>
                     <div style="margin-top:15px; text-align:right;">
                         <button type="button" onclick="closeModal()">Скасувати</button>
                         <button type="submit">Зберегти</button>
@@ -850,10 +870,36 @@
     }
 
     // Модальне вікно для додавання продажу
-    function openAddSaleForm(manager) {
+    async function openAddSaleForm(manager) {
         document.getElementById('modal').style.display = 'flex';
         document.getElementById('modal-title').textContent = 'Додати продаж';
         const form = document.getElementById('modal-form');
+
+        // 1. Підтягуємо торгові точки та стенди
+        const standsData = await fetchSheet(managerSheets[manager].stands);
+
+        // Унікальні торгові точки
+        const shops = Array.from(new Set(
+          standsData
+            .map(row => row['Назва ТТ'])
+            .filter(Boolean)
+        ));
+
+        // Унікальні стенди (по всіх колонках після "Адреса" і до "Коментар")
+        const columns = standsData.length ? Object.keys(standsData[0]) : [];
+        const idxStart = columns.indexOf("Адреса") + 1;
+        let idxEnd = columns.indexOf("Коментар");
+        if (idxEnd === -1) idxEnd = columns.length;
+        const standNames = columns.slice(idxStart, idxEnd);
+
+        // Заповнюємо селектори
+        const shopSelect = document.getElementById('modal-shop-select');
+        shopSelect.innerHTML = shops.map(shop => `<option value="${shop}">${shop}</option>`).join('');
+
+        const standSelect = document.getElementById('modal-stand-select');
+        standSelect.innerHTML = standNames.map(stand => `<option value="${stand}">${stand}</option>`).join('');
+
+        // 2. Обробка сабміту
         form.onsubmit = async function(e) {
             e.preventDefault();
             const data = Object.fromEntries(new FormData(form).entries());
