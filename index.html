@@ -785,7 +785,14 @@
     function filterSalesByMonth(data, month, year) {
       return data.filter(row => {
         if (!row['Дата']) return false;
-        const d = new Date(row['Дата']);
+        let d;
+        if (row['Дата'].includes('.')) {
+          // DD.MM.YYYY
+          const [day, mon, yr] = row['Дата'].split('.');
+          d = new Date(`${yr}-${mon}-${day}`);
+        } else {
+          d = new Date(row['Дата']);
+        }
         return d.getMonth() + 1 === month && d.getFullYear() === year;
       });
     }
@@ -830,6 +837,7 @@
           tbody.appendChild(tr);
         });
         renderSalesMatrix(manager, filtered);
+        console.log('filtered sales:', filtered);
       });
 
       if (!onlySales) {
@@ -894,10 +902,14 @@
 
         // Заповнюємо селектори
         const shopSelect = document.getElementById('modal-shop-select');
+        const standSelect = document.getElementById('modal-stand-select');
+        console.log('shopSelect:', shopSelect, 'standSelect:', standSelect);
         shopSelect.innerHTML = shops.map(shop => `<option value="${shop}">${shop}</option>`).join('');
 
-        const standSelect = document.getElementById('modal-stand-select');
         standSelect.innerHTML = standNames.map(stand => `<option value="${stand}">${stand}</option>`).join('');
+
+        console.log('shops:', shops);
+        console.log('standNames:', standNames);
 
         // 2. Обробка сабміту
         form.onsubmit = async function(e) {
