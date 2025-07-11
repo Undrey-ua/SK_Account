@@ -789,13 +789,15 @@
         if (row['Дата'].includes('.')) {
           // DD.MM або DD.MM.YYYY
           const parts = row['Дата'].split('.').map(x => x.trim());
-          let day = parts[0], mon = parts[1], yr = parts[2];
-          if (!yr) {
-            yr = year; // якщо рік не вказано — беремо вибраний у фільтрі
-          }
-          d = new Date(`${yr}-${mon}-${day}`);
+          let day = parseInt(parts[0], 10);
+          let mon = parseInt(parts[1], 10);
+          let yr = parts[2] ? parseInt(parts[2], 10) : year;
+          // JS Date: місяці з 0, тому -1
+          d = new Date(yr, mon - 1, day);
+          console.log('parts:', parts, 'day:', day, 'mon:', mon, 'yr:', yr, 'd:', d, 'isValid:', !isNaN(d));
         } else {
           d = new Date(row['Дата']);
+          console.log('ISO/інше:', row['Дата'], d, 'isValid:', !isNaN(d));
         }
         return d.getMonth() + 1 === month && d.getFullYear() === year;
       });
