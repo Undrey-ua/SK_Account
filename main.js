@@ -215,9 +215,13 @@ function updateManagerStats(manager) {
   // Загальна кількість продажів (сума)
   const totalSales = filtered.reduce((sum, row) => sum + Number(row['Кількість'] || 0), 0);
 
-  // Середня ТТ (середнє по унікальних торгових точках)
-  const uniqueShops = [...new Set(filtered.map(row => row['Торгова точка']))];
-  const avgSales = uniqueShops.length ? (totalSales / uniqueShops.length) : 0;
+  // Загальна кількість торгових точок з матриці стендів
+  let uniqueShopsCount = 0;
+  if (window.standsMatrixData && window.standsMatrixData[manager]) {
+    const data = window.standsMatrixData[manager];
+    uniqueShopsCount = new Set(data.map(row => row['Назва ТТ'])).size;
+  }
+  const avgSales = uniqueShopsCount ? (totalSales / uniqueShopsCount) : 0;
 
   document.getElementById(`${manager}-sales`).textContent = totalSales.toFixed(2);
   document.getElementById(`${manager}-avg`).textContent = avgSales.toFixed(2);
@@ -264,12 +268,14 @@ function renderAnalyticsTable() {
     }
     // Загальна кількість продажів (кв.м)
     const totalSales = sales.reduce((sum, row) => sum + Number(row['Кількість'] || 0), 0);
+    const avgSales = uniqueShopsCount ? (totalSales / uniqueShopsCount) : 0;
 
     return {
       manager: managerMap[manager],
       totalSales,
       uniqueShops: uniqueShopsCount,
-      standsCount
+      standsCount,
+      avgSales
     };
   });
 
@@ -281,6 +287,7 @@ function renderAnalyticsTable() {
         <th>Продажі (кв м)</th>
         <th>Кількість ТТ</th>
         <th>Кількість стендів</th>
+        <th>Середня ТТ</th>
       </tr>
     </thead>
     <tbody>
@@ -290,6 +297,7 @@ function renderAnalyticsTable() {
           <td>${r.totalSales.toFixed(2)}</td>
           <td>${r.uniqueShops}</td>
           <td>${r.standsCount}</td>
+          <td>${r.avgSales.toFixed(2)}</td>
         </tr>
       `).join('')}
     </tbody>
