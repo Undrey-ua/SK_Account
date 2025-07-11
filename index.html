@@ -448,6 +448,14 @@
             <h4>Облік стендів (матриця)</h4>
             <div id="andrii-stands-matrix"></div>
             <h4>Продажі (матриця)</h4>
+            <div class="filter-row">
+              <label>Місяць:
+                <select class="month-select" data-manager="andrii"></select>
+              </label>
+              <label>Рік:
+                <select class="year-select" data-manager="andrii"></select>
+              </label>
+            </div>
             <div id="andrii-sales-matrix"></div>
         </div>
         
@@ -488,6 +496,14 @@
             <h4>Облік стендів (матриця)</h4>
             <div id="roman-stands-matrix"></div>
             <h4>Продажі (матриця)</h4>
+            <div class="filter-row">
+              <label>Місяць:
+                <select class="month-select" data-manager="roman"></select>
+              </label>
+              <label>Рік:
+                <select class="year-select" data-manager="roman"></select>
+              </label>
+            </div>
             <div id="roman-sales-matrix"></div>
         </div>
         
@@ -528,6 +544,14 @@
             <h4>Облік стендів (матриця)</h4>
             <div id="pavlo-stands-matrix"></div>
             <h4>Продажі (матриця)</h4>
+            <div class="filter-row">
+              <label>Місяць:
+                <select class="month-select" data-manager="pavlo"></select>
+              </label>
+              <label>Рік:
+                <select class="year-select" data-manager="pavlo"></select>
+              </label>
+            </div>
             <div id="pavlo-sales-matrix"></div>
         </div>
         
@@ -716,63 +740,106 @@
         document.getElementById(`${manager}-sales-matrix`).innerHTML = html;
     }
 
-    function renderManagerTab(manager) {
-        const sheets = managerSheets[manager];
-        // Продажі
-        fetchSheet(sheets.sales).then(data => {
-            const total = data.reduce((sum, row) => {
-                const val = parseFloat((row['Всього, кв м'] || row['Продажі (м²)'] || '0').toString().replace(',', '.'));
-                return sum + (isNaN(val) ? 0 : val);
-            }, 0);
-            const roundedTotal = total.toFixed(3);
-            console.log('roundedTotal:', roundedTotal);
-            document.getElementById(`${manager}-sales`).textContent = roundedTotal;
-            // Середня ТТ
-            const avg = data.length ? (total / data.length) : 0;
-            document.getElementById(`${manager}-avg`).textContent = avg.toLocaleString('uk-UA', {maximumFractionDigits: 3});
-            // Таблиця продажів
-            const tbody = document.querySelector(`#${manager}-table tbody`);
-            tbody.innerHTML = '';
-            data.forEach(row => {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `
-                    <td>${row['Назва ТТ'] || row['Торгова точка'] || ''}</td>
-                    <td>${row['Стенд'] || ''}</td>
-                    <td>${row['Всього, кв м'] || row['Продажі (м²)'] || ''}</td>
-                    <td>${row['Дата'] ? new Date(row['Дата']).toLocaleDateString('uk-UA') : ''}</td>
-                    <td>${row['Коментар'] || ''}</td>
-                `;
-                tbody.appendChild(tr);
-            });
-            renderSalesMatrix(manager, data);
+    const months = [
+      "Січень", "Лютий", "Березень", "Квітень", "Травень", "Червень",
+      "Липень", "Серпень", "Вересень", "Жовтень", "Листопад", "Грудень"
+    ];
+
+    function fillMonthYearSelectors() {
+      ['andrii', 'roman', 'pavlo'].forEach(manager => {
+        const monthSel = document.querySelector(`.month-select[data-manager="${manager}"]`);
+        const yearSel = document.querySelector(`.year-select[data-manager="${manager}"]`);
+        if (!monthSel || !yearSel) return;
+        monthSel.innerHTML = months.map((m, i) =>
+          `<option value="${i+1}" ${i+1===new Date().getMonth()+1 ? 'selected' : ''}>${m}</option>`
+        ).join('');
+        const thisYear = new Date().getFullYear();
+        yearSel.innerHTML = '';
+        for (let y = thisYear; y >= thisYear-5; y--) {
+          yearSel.innerHTML += `<option value="${y}" ${y===thisYear ? 'selected' : ''}>${y}</option>`;
+        }
+      });
+    }
+    fillMonthYearSelectors();
+
+    function filterSalesByMonth(data, month, year) {
+      return data.filter(row => {
+        if (!row['Дата']) return false;
+        const d = new Date(row['Дата']);
+        return d.getMonth() + 1 === month && d.getFullYear() === year;
+      });
+    }
+
+    document.querySelectorAll('.month-select, .year-select').forEach(sel => {
+      sel.addEventListener('change', function() {
+        const manager = this.getAttribute('data-manager');
+        renderManagerTab(manager, true); // true = оновити тільки продажі
+      });
+    });
+
+    function renderManagerTab(manager, onlySales = false) {
+      const sheets = managerSheets[manager];
+      // Витягуємо обраний місяць/рік
+      const monthSel = document.querySelector(`.month-select[data-manager="${manager}"]`);
+      const yearSel = document.querySelector(`.year-select[data-manager="${manager}"]`);
+      const month = monthSel ? Number(monthSel.value) : (new Date().getMonth() + 1);
+      const year = yearSel ? Number(yearSel.value) : (new Date().getFullYear());
+
+      fetchSheet(sheets.sales).then(data => {
+        const filtered = filterSalesByMonth(data, month, year);
+        const total = filtered.reduce((sum, row) => {
+          const val = parseFloat((row['Всього, кв м'] || row['Продажі (м²)'] || '0').toString().replace(',', '.'));
+          return sum + (isNaN(val) ? 0 : val);
+        }, 0);
+        const roundedTotal = total.toFixed(3);
+        document.getElementById(`${manager}-sales`).textContent = roundedTotal;
+        const avg = filtered.length ? (total / filtered.length) : 0;
+        document.getElementById(`${manager}-avg`).textContent = avg.toLocaleString('uk-UA', {maximumFractionDigits: 3});
+        // Таблиця продажів
+        const tbody = document.querySelector(`#${manager}-table tbody`);
+        tbody.innerHTML = '';
+        filtered.forEach(row => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${row['Назва ТТ'] || row['Торгова точка'] || ''}</td>
+            <td>${row['Стенд'] || ''}</td>
+            <td>${row['Всього, кв м'] || row['Продажі (м²)'] || ''}</td>
+            <td>${row['Дата'] ? new Date(row['Дата']).toLocaleDateString('uk-UA') : ''}</td>
+            <td>${row['Коментар'] || ''}</td>
+          `;
+          tbody.appendChild(tr);
         });
-        // Стенди (оновлено)
-        console.log('Яку вкладку підтягуємо для стендів:', sheets.stands);
+        renderSalesMatrix(manager, filtered);
+      });
+
+      if (!onlySales) {
+        // Стенди
         fetchSheet(sheets.stands).then(data => {
-            renderStandsMatrix(manager, data);
+          renderStandsMatrix(manager, data);
         });
         // Цілі
         fetchSheet(sheets.goals).then(data => {
-            const goals = data.filter(row => row['Менеджер'] === sheets.name);
-            const grid = document.getElementById(`${manager}-goals`);
-            grid.innerHTML = '';
-            goals.forEach(goal => {
-                const div = document.createElement('div');
-                div.className = 'goal-card';
-                div.innerHTML = `
-                    <div class="goal-title">${goal['Ціль'] || 'Продажі'}</div>
-                    <div class="progress-bar"><div class="progress-fill" style="width:${goal['Виконання']||'0'}%">${goal['Виконання']||'0'}%</div></div>
-                    <div>${goal['Факт']||'0'} / ${goal['План']||'0'}</div>
-                `;
-                grid.appendChild(div);
-            });
+          const goals = data.filter(row => row['Менеджер'] === sheets.name);
+          const grid = document.getElementById(`${manager}-goals`);
+          grid.innerHTML = '';
+          goals.forEach(goal => {
+            const div = document.createElement('div');
+            div.className = 'goal-card';
+            div.innerHTML = `
+              <div class="goal-title">${goal['Ціль'] || 'Продажі'}</div>
+              <div class="progress-bar"><div class="progress-fill" style="width:${goal['Виконання']||'0'}%">${goal['Виконання']||'0'}%</div></div>
+              <div>${goal['Факт']||'0'} / ${goal['План']||'0'}</div>
+            `;
+            grid.appendChild(div);
+          });
         });
+      }
     }
 
     function renderAllManagers() {
-        renderManagerTab('andrii');
-        renderManagerTab('roman');
-        renderManagerTab('pavlo');
+      renderManagerTab('andrii');
+      renderManagerTab('roman');
+      renderManagerTab('pavlo');
     }
 
     function showTab(tabId) {
