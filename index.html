@@ -787,13 +787,10 @@
         if (!row['Дата']) return false;
         let d;
         if (row['Дата'].includes('.')) {
-          // DD.MM.YYYY
-          const [day, mon, yr] = row['Дата'].split('.');
+          const [day, mon, yr] = row['Дата'].split('.').map(x => x.trim());
           d = new Date(`${yr}-${mon}-${day}`);
-          console.log(`Парсимо дату (DD.MM.YYYY): ${row['Дата']} ->`, d);
         } else {
           d = new Date(row['Дата']);
-          console.log(`Парсимо дату (ISO/інше): ${row['Дата']} ->`, d);
         }
         const match = d.getMonth() + 1 === month && d.getFullYear() === year;
         if (!match) {
