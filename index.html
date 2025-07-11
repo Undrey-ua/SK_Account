@@ -787,16 +787,17 @@
         if (!row['Дата']) return false;
         let d;
         if (row['Дата'].includes('.')) {
-          const [day, mon, yr] = row['Дата'].split('.').map(x => x.trim());
+          // DD.MM або DD.MM.YYYY
+          const parts = row['Дата'].split('.').map(x => x.trim());
+          let day = parts[0], mon = parts[1], yr = parts[2];
+          if (!yr) {
+            yr = year; // якщо рік не вказано — беремо вибраний у фільтрі
+          }
           d = new Date(`${yr}-${mon}-${day}`);
         } else {
           d = new Date(row['Дата']);
         }
-        const match = d.getMonth() + 1 === month && d.getFullYear() === year;
-        if (!match) {
-          console.log(`НЕ співпадає місяць/рік:`, d, 'row:', row);
-        }
-        return match;
+        return d.getMonth() + 1 === month && d.getFullYear() === year;
       });
     }
 
