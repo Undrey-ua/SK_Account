@@ -790,10 +790,16 @@
           // DD.MM.YYYY
           const [day, mon, yr] = row['Дата'].split('.');
           d = new Date(`${yr}-${mon}-${day}`);
+          console.log(`Парсимо дату (DD.MM.YYYY): ${row['Дата']} ->`, d);
         } else {
           d = new Date(row['Дата']);
+          console.log(`Парсимо дату (ISO/інше): ${row['Дата']} ->`, d);
         }
-        return d.getMonth() + 1 === month && d.getFullYear() === year;
+        const match = d.getMonth() + 1 === month && d.getFullYear() === year;
+        if (!match) {
+          console.log(`НЕ співпадає місяць/рік:`, d, 'row:', row);
+        }
+        return match;
       });
     }
 
@@ -885,6 +891,7 @@
 
         // 1. Підтягуємо торгові точки та стенди
         const standsData = await fetchSheet(managerSheets[manager].stands);
+        console.log('standsData:', standsData);
 
         // Унікальні торгові точки
         const shops = Array.from(new Set(
@@ -892,6 +899,7 @@
             .map(row => row['Назва ТТ'])
             .filter(Boolean)
         ));
+        console.log('shops:', shops);
 
         // Унікальні стенди (по всіх колонках після "Адреса" і до "Коментар")
         const columns = standsData.length ? Object.keys(standsData[0]) : [];
@@ -899,17 +907,14 @@
         let idxEnd = columns.indexOf("Коментар");
         if (idxEnd === -1) idxEnd = columns.length;
         const standNames = columns.slice(idxStart, idxEnd);
+        console.log('standNames:', standNames);
 
         // Заповнюємо селектори
         const shopSelect = document.getElementById('modal-shop-select');
         const standSelect = document.getElementById('modal-stand-select');
         console.log('shopSelect:', shopSelect, 'standSelect:', standSelect);
         shopSelect.innerHTML = shops.map(shop => `<option value="${shop}">${shop}</option>`).join('');
-
         standSelect.innerHTML = standNames.map(stand => `<option value="${stand}">${stand}</option>`).join('');
-
-        console.log('shops:', shops);
-        console.log('standNames:', standNames);
 
         // 2. Обробка сабміту
         form.onsubmit = async function(e) {
