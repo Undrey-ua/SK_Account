@@ -537,6 +537,7 @@ body {
   scrollbar-width: thin;
   scrollbar-color: #2196f3 #e0e3e7;
 }
+
 .data-table {
   width: max-content;
   min-width: 600px;
@@ -545,6 +546,11 @@ body {
   display: table;
   background: #fff;
 }
+
+.data-table thead th, .data-table td {
+  white-space: nowrap;
+}
+
 @media (max-width: 900px) {
   .data-table {
     min-width: 480px;
@@ -556,11 +562,17 @@ body {
     min-width: 400px;
     font-size: 0.90em;
   }
+  .stands-matrix .data-table {
+    font-size: 0.80em;
+  }
 }
 @media (max-width: 480px) {
   .data-table {
     min-width: 320px;
     font-size: 0.85em;
+  }
+  .stands-matrix .data-table {
+    font-size: 0.75em;
   }
 }
 
@@ -569,15 +581,4 @@ body {
   min-width: 90vw;
   max-width: 98vw;
   padding: 12px 4vw;
-} 
-
-@media (max-width: 700px) {
-  .stands-matrix .data-table {
-    font-size: 0.80em;
-  }
-}
-@media (max-width: 480px) {
-  .stands-matrix .data-table {
-    font-size: 0.75em;
-  }
 } 
