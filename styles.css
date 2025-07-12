@@ -667,3 +667,26 @@ td.address-cell {
     padding: 4px 1px;
   }
 } 
+
+.stands-matrix .table-scroll {
+  width: 100vw !important;
+  max-width: 100vw !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+  display: block;
+  position: relative;
+  left: 50%;
+  right: 50%;
+  margin-left: -50vw;
+  margin-right: -50vw;
+}
+
+.stands-matrix .data-table {
+  width: max-content !important;
+  min-width: 600px;
+  border-collapse: collapse;
+  margin-bottom: 18px;
+  display: table;
+  background: #fff;
+  table-layout: auto;
+} 
