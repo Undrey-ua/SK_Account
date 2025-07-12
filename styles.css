@@ -619,3 +619,27 @@ td.address-cell {
   max-width: 98vw;
   padding: 12px 4vw;
 } 
+
+/* Дозволяємо переносити текст у заголовках матриці стендів */
+.stands-matrix .data-table th {
+  white-space: normal !important;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.2;
+  padding: 10px 6px;
+}
+.stands-matrix .data-table td:first-child,
+.stands-matrix .data-table td:nth-child(2) {
+  white-space: normal !important;
+  word-break: break-word;
+} 
+
+.stands-matrix .data-table td:first-child {
+  white-space: normal !important;
+  word-break: break-word;
+}
+
+.stands-matrix .data-table td:nth-child(2) {
+  white-space: normal !important;
+  word-break: break-word;
+} 
