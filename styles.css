@@ -528,12 +528,17 @@ body {
 }
 
 /* Горизонтальний скрол для таблиць на мобільних */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
 .data-table {
+  min-width: 600px;
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 18px;
-  overflow-x: auto;
-  display: block;
+  display: table;
 }
 
 .data-table thead th, .data-table td {

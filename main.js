@@ -52,7 +52,7 @@ function buildSalesMatrix(manager, month, year) {
     html += '</tr>';
   });
   html += '</tbody></table>';
-  return html;
+  return `<div class="table-scroll">${html}</div>`;
 }
 
 function renderSalesMatrixForManager(manager) {
@@ -117,7 +117,7 @@ function buildStandsMatrix(data) {
     html += '</tr>';
   });
   html += '</tbody></table>';
-  return html;
+  return `<div class="table-scroll">${html}</div>`;
 }
 
 async function renderStandsMatrixForManager(manager) {
@@ -302,7 +302,7 @@ function renderAnalyticsTable() {
       `).join('')}
     </tbody>
   </table>`;
-  document.getElementById('analytics-table').innerHTML = html;
+  document.getElementById('analytics-table').innerHTML = `<div class="table-scroll">${html}</div>`;
 }
 
 function fillAnalyticsMonthYearSelects() {
