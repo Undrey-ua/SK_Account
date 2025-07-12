@@ -434,16 +434,40 @@ body {
 
 @media (max-width: 700px) {
   .manager-stats {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 12px;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+  }
+  .stat-item {
+    min-width: 110px;
+    margin-bottom: 0;
   }
   .period-selectors {
-    margin-left: 0;
-    margin-top: 10px;
-    width: 100%;
-    justify-content: flex-start;
-    padding: 8px 8px;
+    margin: 12px auto 0 auto;
+    width: fit-content;
+    justify-content: center;
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    background: rgba(255,255,255,0.10);
+    padding: 8px 12px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(33,150,243,0.07);
+  }
+}
+@media (max-width: 480px) {
+  .manager-stats {
+    gap: 6px;
+  }
+  .stat-item {
+    min-width: 90px;
+    font-size: 0.95em;
+  }
+  .period-selectors {
+    gap: 6px;
+    padding: 6px 4px;
   }
 } 
 
