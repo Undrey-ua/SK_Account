@@ -562,6 +562,27 @@ td.address-cell {
   text-align: left !important;
   font-size: 11px;
   color: #7f8c8d;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  /* Для сучасних браузерів */
+  line-clamp: 4;
+  box-orient: vertical;
+}
+
+/* На мобільних можна зробити трохи меншу ширину, якщо потрібно */
+@media (max-width: 700px) {
+  td.address-cell {
+    max-width: 120px;
+    font-size: 10px;
+  }
+}
+@media (max-width: 480px) {
+  td.address-cell {
+    max-width: 90px;
+    font-size: 9px;
+  }
 }
 
 @media (max-width: 900px) {
