@@ -532,13 +532,16 @@ body {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  display: block;
 }
+
 .data-table {
-  min-width: 600px;
-  width: 100%;
+  width: max-content;
+  min-width: 600px; /* або більше, якщо потрібно */
   border-collapse: collapse;
   margin-bottom: 18px;
   display: table;
+  background: #fff;
 }
 
 .data-table thead th, .data-table td {
@@ -550,4 +553,11 @@ body {
   min-width: 90vw;
   max-width: 98vw;
   padding: 12px 4vw;
+} 
+
+@media (max-width: 700px) {
+  .data-table {
+    min-width: 480px;
+    font-size: 0.95em;
+  }
 } 
