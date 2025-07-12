@@ -768,3 +768,18 @@ td.address-cell {
     font-size: 8px;
   }
 } 
+
+.stands-matrix .data-table th,
+.stands-matrix .data-table td {
+  min-width: 60px;
+}
+
+.stands-matrix .data-table th:last-child,
+.stands-matrix .data-table td:last-child {
+  max-width: 120px;
+  min-width: 80px;
+  white-space: normal !important;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  text-align: left;
+} 
