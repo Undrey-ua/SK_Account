@@ -539,12 +539,14 @@ body {
 }
 
 .data-table {
-  width: max-content;
+  width: 100%;
   min-width: 600px;
+  max-width: 100%;
   border-collapse: collapse;
   margin-bottom: 18px;
   display: table;
   background: #fff;
+  table-layout: auto;
 }
 
 .data-table thead th, .data-table td {
@@ -553,12 +555,14 @@ body {
 
 @media (max-width: 900px) {
   .data-table {
+    width: max-content;
     min-width: 480px;
     font-size: 0.95em;
   }
 }
 @media (max-width: 700px) {
   .data-table {
+    width: max-content;
     min-width: 400px;
     font-size: 0.90em;
   }
@@ -568,6 +572,7 @@ body {
 }
 @media (max-width: 480px) {
   .data-table {
+    width: max-content;
     min-width: 320px;
     font-size: 0.85em;
   }
