@@ -783,3 +783,43 @@ td.address-cell {
   overflow-wrap: break-word;
   text-align: left;
 } 
+
+.stands-matrix .table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  display: block;
+}
+
+.stands-matrix .data-table {
+  width: 100% !important;
+  min-width: 600px;
+  border-collapse: collapse;
+  margin-bottom: 18px;
+  display: table;
+  background: #fff;
+  table-layout: fixed !important;
+}
+
+.stands-matrix .data-table th,
+.stands-matrix .data-table td {
+  width: 80px;
+  min-width: 60px;
+  max-width: 120px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.stands-matrix .data-table th:nth-child(2),
+.stands-matrix .data-table td:nth-child(2) {
+  width: 120px;
+  max-width: 160px;
+}
+
+.stands-matrix .data-table th:last-child,
+.stands-matrix .data-table td:last-child {
+  width: 120px;
+  max-width: 160px;
+  white-space: normal !important;
+  text-align: left;
+} 
