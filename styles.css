@@ -555,6 +555,15 @@ body {
   white-space: nowrap;
 }
 
+td.address-cell {
+  white-space: normal !important;
+  word-break: break-word;
+  max-width: 200px;
+  text-align: left !important;
+  font-size: 11px;
+  color: #7f8c8d;
+}
+
 @media (max-width: 900px) {
   .data-table {
     width: max-content;
