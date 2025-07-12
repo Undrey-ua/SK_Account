@@ -628,7 +628,7 @@ td.address-cell {
   font-size: 12px;
   line-height: 1.2;
   padding: 10px 6px;
-  max-width: 120px; /* ширше на ПК */
+  max-width: 140px;
   writing-mode: horizontal-tb !important;
   text-align: center;
   vertical-align: middle;
@@ -651,21 +651,21 @@ td.address-cell {
 
 @media (max-width: 900px) {
   .stands-matrix .data-table th {
-    max-width: 100px;
+    max-width: 160px;
     font-size: 11px;
     padding: 8px 4px;
   }
 }
 @media (max-width: 700px) {
   .stands-matrix .data-table th {
-    max-width: 90px;
+    max-width: 200px;
     font-size: 10px;
     padding: 6px 2px;
   }
 }
 @media (max-width: 480px) {
   .stands-matrix .data-table th {
-    max-width: 80px;
+    max-width: 220px;
     font-size: 9px;
     padding: 4px 1px;
   }
