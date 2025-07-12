@@ -1,8 +1,166 @@
 // === Глобальна змінна для сирих продажів ===
 let rawSalesData = [];
 
+// === Функції для модального вікна додавання продажів ===
+function openAddSaleForm(managerId = null) {
+  const modal = document.getElementById('addSaleModal');
+  if (modal) {
+    modal.style.display = 'flex';
+    
+    // Встановити поточну дату
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('sale-date').value = today;
+    
+    // Встановити менеджера, якщо передано
+    if (managerId) {
+      const managerMap = { andrii: 'Андрій', roman: 'Роман', pavlo: 'Павло' };
+      const managerSelect = document.getElementById('sale-manager-select');
+      if (managerSelect && managerMap[managerId]) {
+        managerSelect.value = managerMap[managerId];
+      }
+      // Оновити список ТТ для цього менеджера
+      fillShopSelect(document.getElementById('sale-shop-select'), managerId);
+    } else {
+      fillShopSelect(document.getElementById('sale-shop-select'), null);
+    }
+    
+    // Заповнити селекти
+    fillStandSelect(document.getElementById('sale-stand-select'));
+  }
+}
+
+function closeAddSaleForm() {
+  const modal = document.getElementById('addSaleModal');
+  if (modal) {
+    modal.style.display = 'none';
+    // Очистити форму
+    document.getElementById('addSaleForm').reset();
+  }
+}
+
+// Закриття модального вікна при кліку поза ним
+document.addEventListener('click', function(event) {
+  const modal = document.getElementById('addSaleModal');
+  if (modal && event.target === modal) {
+    closeAddSaleForm();
+  }
+});
+
+// Закриття модального вікна при натисканні Escape
+document.addEventListener('keydown', function(event) {
+  if (event.key === 'Escape') {
+    closeAddSaleForm();
+  }
+});
+
+async function submitAddSaleForm(event) {
+  event.preventDefault();
+
+  const formData = new FormData(event.target);
+  const saleData = {
+    'Торгова точка': formData.get('shop'),
+    'Стенд': formData.get('stand'),
+    'Кількість': formData.get('quantity'),
+    'Дата': formData.get('date'),
+    'Коментар': formData.get('comment'),
+    'Менеджер': formData.get('manager')
+  };
+
+  try {
+    // ВАШ Apps Script endpoint
+    const API_URL = 'https://script.google.com/macros/s/AKfycbyD_dJbcm96wvVONAIPsECRba6dqtK4nPVBjaApc5knf8WsrO05d4buEZfZKuTgnBAL/exec?sheet=Продажі';
+
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      body: JSON.stringify(saleData),
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const result = await res.json();
+    if (result.result === 'success') {
+      closeAddSaleForm();
+      await loadRawSales();
+      // Оновити відображення для поточного менеджера
+      const activeTab = document.querySelector('.tab-content.active');
+      if (activeTab) {
+        const managerId = activeTab.id;
+        if (['andrii', 'roman', 'pavlo'].includes(managerId)) {
+          renderSalesTableForManager(managerId);
+          renderSalesMatrixForManager(managerId);
+          updateManagerStats(managerId);
+        }
+      }
+      showNotification('Продаж успішно додано!', 'success');
+    } else {
+      throw new Error('Не вдалося додати продаж');
+    }
+  } catch (error) {
+    console.error('Помилка при додаванні продажу:', error);
+    showNotification('Помилка при додаванні продажу', 'error');
+  }
+}
+
+function showNotification(message, type = 'info') {
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.textContent = message;
+  
+  document.body.appendChild(notification);
+  
+  // Показати повідомлення
+  setTimeout(() => notification.classList.add('show'), 100);
+  
+  // Приховати через 3 секунди
+  setTimeout(() => {
+    notification.classList.remove('show');
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
+}
+
+// === Функції для завантаження списків ===
+async function loadStandsList() {
+  const data = await fetchSheet('Стенди');
+  console.log('Стенди:', data);
+  // Якщо [{Стенд: "..."}]
+  if (data.length && data[0]['Стенд']) {
+    return data.map(row => row['Стенд']);
+  }
+  // Якщо [{назва: "..."}]
+  if (data.length && typeof Object.values(data[0])[0] === 'string') {
+    return data.map(row => Object.values(row)[0]);
+  }
+  // Якщо просто масив назв
+  if (Array.isArray(data) && typeof data[0] === 'string') {
+    return data;
+  }
+  return [];
+}
+
+async function loadShopsList(manager) {
+  // Повертає список ТТ лише для конкретного менеджера
+  const data = await loadStandsMatrix(manager);
+  const shops = new Set();
+  data.forEach(row => {
+    if (row['Назва ТТ']) shops.add(row['Назва ТТ']);
+  });
+  return Array.from(shops).sort();
+}
+
+async function fillShopSelect(selectElement, manager) {
+  try {
+    const shops = await loadShopsList(manager);
+    selectElement.innerHTML = '<option value="">Оберіть торгову точку</option>' +
+      shops.map(shop => `<option value="${shop}">${shop}</option>`).join('');
+  } catch (error) {
+    console.error('Помилка завантаження торгових точок:', error);
+    selectElement.innerHTML = '<option value="">Помилка завантаження</option>';
+  }
+}
+
 async function fetchSheet(sheet) {
-    const API_URL = 'https://script.google.com/macros/s/AKfycbyD_dJbcm96wvVONAIPsECRba6dqtK4nPVBjaApc5knf8WsrO05d4buEZfZKuTgnBAL/exec';
+    const API_URL = 'https://script.google.com/macros/s/AKfycbwI3cOLFrcmESn0ajoEuSMtHP3HOj1yGSsr3WxNUDq0fzduJYCBL3odEVRC1ki0co0h/exec';
     const url = `${API_URL}?sheet=${encodeURIComponent(sheet)}`;
     const res = await fetch(url);
     return await res.json();
@@ -66,7 +224,9 @@ function renderSalesMatrixForManager(manager) {
 function showTab(tabName) {
   // Сховати всі вкладки
   document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
-  document.getElementById(tabName).classList.add('active');
+  // Показати потрібну вкладку, якщо вона існує
+  const tabDiv = document.getElementById(tabName);
+  if (tabDiv) tabDiv.classList.add('active');
   // Зняти активний клас з усіх кнопок
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   // Додати активний клас до поточної кнопки
@@ -328,7 +488,61 @@ function fillAnalyticsMonthYearSelects() {
   }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+async function loadManagersList() {
+  // Повертає масив об'єктів [{ID: ..., Ім'я: ..., Регіон: ...}, ...]
+  return await fetchSheet('Менеджери');
+}
+
+async function renderManagerTabs() {
+  const managers = await loadManagersList();
+  const tabsContainer = document.querySelector('.tabs');
+  tabsContainer.innerHTML = ''; // Очищаємо старі вкладки
+
+  managers.forEach((manager, idx) => {
+    const btn = document.createElement('button');
+    btn.className = 'tab-btn' + (idx === 0 ? ' active' : '');
+    btn.textContent = `👨‍💼 ${manager['Імʼя']} (${manager['Регіон']})`;
+    btn.onclick = () => showTab(manager['ID']);
+    tabsContainer.appendChild(btn);
+
+    // Додаємо контент для менеджера, якщо ще не існує
+    if (!document.getElementById(manager['ID'])) {
+      const contentDiv = document.createElement('div');
+      contentDiv.id = manager['ID'];
+      contentDiv.className = 'tab-content' + (idx === 0 ? ' active' : '');
+      contentDiv.innerHTML = `<h2>${manager['Імʼя']}</h2>
+        <!-- Тут буде контент менеджера -->`;
+      document.querySelector('.container').appendChild(contentDiv);
+    }
+  });
+
+  // Додаємо інші вкладки (аналітика, плани)
+  const analyticsBtn = document.createElement('button');
+  analyticsBtn.className = 'tab-btn';
+  analyticsBtn.textContent = '📊 Порівняльна аналітика';
+  analyticsBtn.onclick = () => showTab('analytics');
+  tabsContainer.appendChild(analyticsBtn);
+
+  const plansBtn = document.createElement('button');
+  plansBtn.className = 'tab-btn';
+  plansBtn.textContent = '🎯 Цілі та плани';
+  plansBtn.onclick = () => showTab('plans');
+  tabsContainer.appendChild(plansBtn);
+}
+
+async function fillStandSelect(selectElement) {
+  try {
+    const stands = await loadStandsList();
+    selectElement.innerHTML = '<option value="">Оберіть стенд</option>' + 
+      stands.map(stand => `<option value="${stand}">${stand}</option>`).join('');
+  } catch (error) {
+    console.error('Помилка завантаження стендів:', error);
+    selectElement.innerHTML = '<option value="">Помилка завантаження</option>';
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async function() {
+  await renderManagerTabs();
   ['andrii', 'roman', 'pavlo'].forEach(manager => {
     const monthSel = document.querySelector(`.month-select[data-manager="${manager}"]`);
     const yearSel = document.querySelector(`.year-select[data-manager="${manager}"]`);
