@@ -7,7 +7,7 @@ body {
 }
 
 .container {
-    max-width: 1600px;
+    max-width: 1200px;
     margin: 0 auto;
     background: white;
     border-radius: 15px;
@@ -533,19 +533,35 @@ body {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   display: block;
+  /* Додаємо для мобільних плавний скрол */
+  scrollbar-width: thin;
+  scrollbar-color: #2196f3 #e0e3e7;
 }
-
 .data-table {
   width: max-content;
-  min-width: 600px; /* або більше, якщо потрібно */
+  min-width: 600px;
   border-collapse: collapse;
   margin-bottom: 18px;
   display: table;
   background: #fff;
 }
-
-.data-table thead th, .data-table td {
-  white-space: nowrap;
+@media (max-width: 900px) {
+  .data-table {
+    min-width: 480px;
+    font-size: 0.95em;
+  }
+}
+@media (max-width: 700px) {
+  .data-table {
+    min-width: 400px;
+    font-size: 0.90em;
+  }
+}
+@media (max-width: 480px) {
+  .data-table {
+    min-width: 320px;
+    font-size: 0.85em;
+  }
 }
 
 /* Модальне вікно адаптація */
@@ -556,8 +572,12 @@ body {
 } 
 
 @media (max-width: 700px) {
-  .data-table {
-    min-width: 480px;
-    font-size: 0.95em;
+  .stands-matrix .data-table {
+    font-size: 0.80em;
+  }
+}
+@media (max-width: 480px) {
+  .stands-matrix .data-table {
+    font-size: 0.75em;
   }
 } 
