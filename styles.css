@@ -208,6 +208,8 @@ body {
     font-size: 11px;
     color: #7f8c8d;
     max-width: 200px;
+    white-space: normal !important;
+    word-break: break-word;
 }
 
 .brand-cell {

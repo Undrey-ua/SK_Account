@@ -109,7 +109,11 @@ function buildStandsMatrix(data) {
   data.forEach(row => {
     html += '<tr>';
     mainCols.forEach(col => {
-      html += `<td>${row[col] || ''}</td>`;
+      if (col === 'Адреса') {
+        html += `<td class="address-cell">${row[col] || ''}</td>`;
+      } else {
+        html += `<td>${row[col] || ''}</td>`;
+      }
     });
     standTypes.forEach(type => {
       html += `<td>${row[type] || ''}</td>`;
