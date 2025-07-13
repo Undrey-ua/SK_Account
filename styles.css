@@ -1098,32 +1098,36 @@ td.address-cell {
     text-align: left;
   }
   .manager-stats {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 10px;
+    flex-direction: column;   /* <-- головне! */
+    flex-wrap: nowrap;
+    gap: 8px;
     width: 100%;
   }
-  .stat-item, .period-selectors {
-    flex: 1 1 120px;
-    min-width: 120px;
-    max-width: 100%;
+  .stat-item {
+    width: 100%;
+    min-width: 0;
     box-sizing: border-box;
     padding: 6px 4px;
-    font-size: 0.95em;
+    font-size: 1em;
+    margin-bottom: 0;
   }
   .period-selectors {
-    flex-direction: row;
-    gap: 10px;
+    flex-direction: column;
+    gap: 6px;
+    width: 100%;
     margin-bottom: 0;
   }
   .period-selectors label {
     font-size: 1em;
-    margin-right: 10px;
+    margin-right: 0;
+    width: 100%;
   }
   .period-selectors select {
     font-size: 1em;
     padding: 6px 10px;
-    min-width: 80px;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
   }
 } 
 
