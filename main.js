@@ -270,13 +270,15 @@ function buildStandsMatrix(data) {
     html += '<tr>';
     mainCols.forEach(col => {
       if (col === 'Адреса') {
-        html += `<td class="address-cell">${row[col] || ''}</td>`;
+        html += `<td class="address-cell">${row[col] ? row[col] : '&nbsp;'}</td>`;
+      } else if (col === 'Назва ТТ') {
+        html += `<td class="shop-name">${row[col] ? row[col] : '&nbsp;'}</td>`;
       } else {
-        html += `<td>${row[col] || ''}</td>`;
+        html += `<td>${row[col] ? row[col] : '&nbsp;'}</td>`;
       }
     });
     standTypes.forEach(type => {
-      html += `<td>${row[type] || ''}</td>`;
+      html += `<td>${row[type] ? row[type] : '&nbsp;'}</td>`;
     });
     html += '</tr>';
   });

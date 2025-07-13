@@ -586,30 +586,28 @@ body {
 td.address-cell {
   white-space: normal !important;
   word-break: break-word;
-  max-width: 200px;
-  text-align: left !important;
-  font-size: 11px;
-  color: #7f8c8d;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
   overflow: hidden;
-  /* Для сучасних браузерів */
-  line-clamp: 4;
-  box-orient: vertical;
+  text-overflow: ellipsis;
+  color: inherit;
+  font-size: inherit;
+  text-align: left !important;
+  padding-left: 4px;
 }
 
-/* На мобільних можна зробити трохи меншу ширину, якщо потрібно */
 @media (max-width: 700px) {
   td.address-cell {
-    max-width: 120px;
-    font-size: 10px;
+    max-width: 100px;
+    font-size: 11px;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 }
 @media (max-width: 480px) {
   td.address-cell {
-    max-width: 90px;
-    font-size: 9px;
+    max-width: 70px;
+    font-size: 10px;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 }
 
@@ -1229,4 +1227,20 @@ h1, h2, h3, h4, h5 {
 
 html, body, .data-table th, .data-table td {
   lang: uk;
+} 
+
+.data-table td,
+.data-table th {
+  vertical-align: middle;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.data-table td.shop-name,
+td.address-cell {
+  font-size: 1em;
+  color: #222;
+  padding-left: 8px;
+  padding-right: 8px;
+  text-align: left;
 } 
