@@ -1092,24 +1092,10 @@ td.address-cell {
     overflow-x: auto;
     width: 100%;
   }
-  .manager-details, .manager-stats, .period-selectors {
+  .manager-details, .period-selectors, .manager-stats {
     width: 100%;
     margin: 0 0 8px 0;
     text-align: left;
-  }
-  .manager-stats {
-    flex-direction: column;   /* <-- головне! */
-    flex-wrap: nowrap;
-    gap: 8px;
-    width: 100%;
-  }
-  .stat-item {
-    width: 100%;
-    min-width: 0;
-    box-sizing: border-box;
-    padding: 6px 4px;
-    font-size: 1em;
-    margin-bottom: 0;
   }
   .period-selectors {
     flex-direction: column;
@@ -1128,6 +1114,23 @@ td.address-cell {
     min-width: 0;
     width: 100%;
     box-sizing: border-box;
+  }
+  .manager-stats {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 0;
+  }
+  .stat-item {
+    flex: 1 1 50%;
+    min-width: 0;
+    box-sizing: border-box;
+    padding: 6px 4px;
+    font-size: 1em;
+    margin-bottom: 0;
+    text-align: center;
   }
 } 
 
