@@ -1086,23 +1086,30 @@ td.address-cell {
   .manager-info {
     flex-direction: column;
     align-items: flex-start;
-    padding: 15px;
-    gap: 10px;
+    padding: 10px;
+    gap: 8px;
+    font-size: 1em;
+    overflow-x: auto;
+    width: 100%;
   }
   .manager-details, .manager-stats, .period-selectors {
     width: 100%;
-    margin: 0 0 10px 0;
+    margin: 0 0 8px 0;
     text-align: left;
   }
   .manager-stats {
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 10px;
-    justify-content: flex-start;
+    width: 100%;
   }
-  .stat-item {
-    min-width: 90px;
-    font-size: 1em;
-    padding: 8px 6px;
+  .stat-item, .period-selectors {
+    flex: 1 1 120px;
+    min-width: 120px;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 6px 4px;
+    font-size: 0.95em;
   }
   .period-selectors {
     flex-direction: row;
@@ -1117,5 +1124,12 @@ td.address-cell {
     font-size: 1em;
     padding: 6px 10px;
     min-width: 80px;
+  }
+} 
+
+@media (max-width: 600px) {
+  .manager-info, .tab-content {
+    overflow-x: auto;
+    width: 100%;
   }
 } 
