@@ -1,9 +1,11 @@
 body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family:
+        system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     margin: 0;
     padding: 20px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
+    transition: font-size 0.2s, font-family 0.2s;
 }
 
 .container {
@@ -107,8 +109,10 @@ body {
 }
 
 .stat-value {
-    font-size: 1.5em;
-    font-weight: bold;
+    font-family: inherit;
+    font-weight: 700;
+    font-size: 2em;
+    letter-spacing: -0.01em;
     display: block;
 }
 
@@ -1176,4 +1180,53 @@ td.address-cell {
     overflow-x: auto;
     width: 100%;
   }
+} 
+
+html {
+  font-size: clamp(14px, 2vw, 18px);
+}
+@media (max-width: 600px) {
+  html {
+    font-size: 15px;
+  }
+}
+@media (max-width: 400px) {
+  html {
+    font-size: 14px;
+  }
+}
+body {
+  font-family:
+    system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  transition: font-size 0.2s, font-family 0.2s;
+}
+h1, h2, h3, h4, h5 {
+  font-family: inherit;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.stat-value {
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 2em;
+  letter-spacing: -0.01em;
+}
+.data-table th, .data-table td {
+  font-family: inherit;
+  transition: font-size 0.2s, font-family 0.2s;
+} 
+
+.data-table th,
+.data-table td {
+  white-space: normal !important;
+  overflow-wrap: break-word !important;
+  word-break: break-word !important;
+  hyphens: auto;
+  line-break: strict;
+  text-align: center;
+  unicode-bidi: plaintext;
+}
+
+html, body, .data-table th, .data-table td {
+  lang: uk;
 } 
