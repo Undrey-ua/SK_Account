@@ -565,7 +565,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     renderSalesMatrixForManager('pavlo');
     ['andrii', 'roman', 'pavlo'].forEach(manager => {
       renderSalesTableForManager(manager);
-      updateManagerStats(manager);
+      updateManagerStats(manager); // <-- це є!
     });
   })();
 
