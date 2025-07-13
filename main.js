@@ -210,7 +210,7 @@ function buildSalesMatrix(manager, month, year) {
     html += '</tr>';
   });
   html += '</tbody></table>';
-  return `<div class="table-scroll">${html}</div>`;
+  return `<div class="table-scroll sales-matrix">${html}</div>`;
 }
 
 function renderSalesMatrixForManager(manager) {
