@@ -1,0 +1,12 @@
+[
+  {
+    "shop": "TriPlanki",
+    "product": "PureLoc",
+    "sku": "3161-4024",
+    "amount": 65,
+    "phone_last4": "1234",
+    "buyer_name": "Іван",
+    "reserve_date": "2024-06-01",
+    "expires_at": "2024-06-22"
+  }
+]

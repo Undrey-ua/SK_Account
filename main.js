@@ -543,6 +543,45 @@ async function fillStandSelect(selectElement) {
   }
 }
 
+// === РЕЗЕРВИ ===
+async function loadReserves() {
+  // Вкажіть актуальний шлях до reserves.json на вашому сервері
+  const url = '/reserves.json';
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Не вдалося завантажити reserves.json');
+    return await res.json();
+  } catch (e) {
+    console.error('Помилка завантаження резервів:', e);
+    return [];
+  }
+}
+
+function renderReservesTable(reserves) {
+  const tbody = document.querySelector('#reserves-table tbody');
+  if (!tbody) return;
+  if (!reserves.length) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#888;">Немає резервів</td></tr>';
+    return;
+  }
+  tbody.innerHTML = reserves.map(r => `
+    <tr>
+      <td>${r.shop || ''}</td>
+      <td>${r.product || r.sku || ''}</td>
+      <td>${r.amount || ''}</td>
+      <td>${r.phone_last4 || ''}</td>
+      <td>${r.buyer_name || ''}</td>
+      <td>${r.reserve_date || ''}</td>
+      <td>${r.expires_at || ''}</td>
+    </tr>
+  `).join('');
+}
+
+async function showReservesTab() {
+  const reserves = await loadReserves();
+  renderReservesTable(reserves);
+}
+
 document.addEventListener('DOMContentLoaded', async function() {
   await renderManagerTabs();
   ['andrii', 'roman', 'pavlo'].forEach(manager => {
@@ -598,4 +637,13 @@ document.addEventListener('DOMContentLoaded', async function() {
     window.standsMatrixData[manager] = await loadStandsMatrix(manager);
   });
   renderAnalyticsTable();
+
+  // Додаємо виклик showReservesTab при відкритті вкладки 'Резерви'
+  const origShowTab = window.showTab;
+  window.showTab = function(tabName) {
+    origShowTab.call(this, tabName);
+    if (tabName === 'reserves') {
+      showReservesTab();
+    }
+  };
 }); 
