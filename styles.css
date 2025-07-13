@@ -589,9 +589,10 @@ td.address-cell {
   overflow: hidden;
   text-overflow: ellipsis;
   color: inherit;
-  font-size: inherit;
+  font-size: 1em;
   text-align: left !important;
   padding-left: 4px;
+  padding-right: 4px;
 }
 
 @media (max-width: 700px) {
@@ -1234,11 +1235,12 @@ html, body, .data-table th, .data-table td {
   vertical-align: middle;
   padding-top: 12px;
   padding-bottom: 12px;
+  font-size: 1em;
 }
 
-.data-table td.shop-name,
-td.address-cell {
-  font-size: 1em;
+.data-table td.shop-name {
+  font-weight: 600;
+  font-size: 1.05em;
   color: #222;
   padding-left: 8px;
   padding-right: 8px;

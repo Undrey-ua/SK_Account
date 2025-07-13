@@ -525,11 +525,11 @@ async function renderManagerTabs() {
   analyticsBtn.onclick = () => showTab('analytics');
   tabsContainer.appendChild(analyticsBtn);
 
-  const plansBtn = document.createElement('button');
-  plansBtn.className = 'tab-btn';
-  plansBtn.textContent = '🎯 Цілі та плани';
-  plansBtn.onclick = () => showTab('plans');
-  tabsContainer.appendChild(plansBtn);
+  const reservesBtn = document.createElement('button');
+  reservesBtn.className = 'tab-btn';
+  reservesBtn.textContent = '📦 Резерви';
+  reservesBtn.onclick = () => showTab('reserves');
+  tabsContainer.appendChild(reservesBtn);
 }
 
 async function fillStandSelect(selectElement) {
