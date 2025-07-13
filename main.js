@@ -546,7 +546,7 @@ async function fillStandSelect(selectElement) {
 // === РЕЗЕРВИ ===
 async function loadReserves() {
   // Вкажіть актуальний шлях до reserves.json на вашому сервері
-  const url = 'https://github.com/Undrey-ua/SK_Account/blob/main/reserves.json';
+  const url = 'https://raw.githubusercontent.com/Undrey-ua/SK_Account/main/reserves.json';
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error('Не вдалося завантажити reserves.json');
