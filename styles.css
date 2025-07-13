@@ -1248,6 +1248,7 @@ html, body, .data-table th, .data-table td {
 } 
 
 #reserves.tab-content {
+  display: none;
   position: relative;
   left: 50%;
   right: 50%;
@@ -1263,6 +1264,9 @@ html, body, .data-table th, .data-table td {
   flex-direction: column;
   align-items: center;
   box-sizing: border-box;
+}
+#reserves.tab-content.active {
+  display: flex;
 }
 #reserves.tab-content h2 {
   display: flex;
@@ -1293,4 +1297,14 @@ html, body, .data-table th, .data-table td {
   margin: 0 auto;
   padding: 0 24px;
   box-sizing: border-box;
+} 
+
+.tab-content {
+  display: none !important;
+}
+.tab-content.active {
+  display: block !important;
+}
+#reserves.tab-content.active {
+  display: flex !important;
 } 

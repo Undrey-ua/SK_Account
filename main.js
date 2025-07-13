@@ -239,6 +239,7 @@ function showTab(tabName) {
   if (tabName === 'roman') updateManagerStats('roman');
   if (tabName === 'pavlo') updateManagerStats('pavlo');
   if (tabName === 'analytics') renderAnalyticsTable();
+  if (tabName === 'reserves') showReservesTab();
 };
 
 async function loadStandsMatrix(manager) {
@@ -639,11 +640,11 @@ document.addEventListener('DOMContentLoaded', async function() {
   renderAnalyticsTable();
 
   // Додаємо виклик showReservesTab при відкритті вкладки 'Резерви'
-  const origShowTab = window.showTab;
-  window.showTab = function(tabName) {
-    origShowTab.call(this, tabName);
-    if (tabName === 'reserves') {
-      showReservesTab();
-    }
-  };
+  // const origShowTab = window.showTab; // Це було перевизначення, яке видалено
+  // window.showTab = function(tabName) { // Це було перевизначення, яке видалено
+  //   origShowTab.call(this, tabName); // Це було перевизначення, яке видалено
+  //   if (tabName === 'reserves') { // Це було перевизначення, яке видалено
+  //     showReservesTab(); // Це було перевизначення, яке видалено
+  //   } // Це було перевизначення, яке видалено
+  // }; // Це було перевизначення, яке видалено
 }); 
