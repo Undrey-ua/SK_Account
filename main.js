@@ -580,6 +580,7 @@ function renderReservesTable(reserves) {
 
 async function showReservesTab() {
   const reserves = await loadReserves();
+  console.log('reserves:', reserves); // Додайте цей рядок
   renderReservesTable(reserves);
 }
 

@@ -18,5 +18,15 @@
     "buyer_name": "Іван",
     "reserve_date": "2025-07-18",
     "expires_at": "2025-08-08"
+  },
+  {
+    "shop": "Свердел",
+    "product": "62002337 BerryAlloc Smartline Hydro Bristol Oak 1288х190х8мм. 32кл/4V 9шт/пач 2,2м2)",
+    "sku": "62002337",
+    "amount": 30.800,
+    "phone_last4": "---",
+    "buyer_name": "---",
+    "reserve_date": "2025-07-17",
+    "expires_at": "2025-08-07"
   }
 ]
