@@ -1318,15 +1318,22 @@ h1, h2, h3, h4, h5 {
   z-index: 2;
   background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
 }
-.data-table th:first-child,
+
 .data-table td:first-child {
   position: sticky;
   left: 0;
-  z-index: 3;
-  background: #f8f9fa;
+  z-index: 1;
+  background-color: #fff; /* Default to white to match the row */
   box-shadow: 2px 0 2px -1px rgba(44,62,80,0.05);
   font-weight: 600;
 }
+
+/* Restore grey background for .shop-name and handle hover for the first column */
+.data-table td.shop-name:first-child,
+.data-table tr:hover td:first-child {
+  background-color: #f8f9fa;
+}
+
 .data-table th:first-child {
-  z-index: 4;
+  z-index: 3; /* Ensure top-left corner is on top */
 } 

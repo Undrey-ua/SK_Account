@@ -8,5 +8,15 @@
     "buyer_name": "Іван",
     "reserve_date": "2025-07-01",
     "expires_at": "2025-07-22"
+  },
+  {
+    "shop": "Свердел",
+    "product": "3160 - 4040 BerryAlloc PureLoc /Limestone Light 298.2 х 603 x 5 (8шт., 1,439 м.кв.) (3160-4040)",
+    "sku": "3160 - 4040",
+    "amount": 34.536,
+    "phone_last4": "1234",
+    "buyer_name": "Іван",
+    "reserve_date": "2025-07-18",
+    "expires_at": "2025-08-08"
   }
 ]
