@@ -721,6 +721,9 @@ td.address-cell {
 
 /* Заголовки — переносимо по словах, не обмежуємо max-width на мобільному */
 .stands-matrix .data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   white-space: normal !important;
   word-break: break-word;
   overflow-wrap: break-word;
@@ -853,6 +856,9 @@ td.address-cell {
 
 /* Перенос назв стендів у матриці продажів */
 .sales-matrix .data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
   white-space: normal !important;
   word-break: break-word;
   overflow-wrap: break-word;
@@ -1225,10 +1231,6 @@ h1, h2, h3, h4, h5 {
   text-align: center;
   unicode-bidi: plaintext;
 }
-
-html, body, .data-table th, .data-table td {
-  lang: uk;
-} 
 
 .data-table td,
 .data-table th {
