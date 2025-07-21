@@ -1308,3 +1308,23 @@ html, body, .data-table th, .data-table td {
 #reserves.tab-content.active {
   display: flex !important;
 } 
+
+/* Sticky header and first column for all .data-table */
+.data-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+}
+.data-table th:first-child,
+.data-table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #f8f9fa;
+  box-shadow: 2px 0 2px -1px rgba(44,62,80,0.05);
+  font-weight: 600;
+}
+.data-table th:first-child {
+  z-index: 4;
+} 
