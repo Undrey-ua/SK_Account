@@ -327,18 +327,17 @@ async function submitAddSaleForm(event) {
       try {
         const res = await fetch(url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'text/plain;charset=utf-8'
-          },
+          // На GitHub Pages CORS блокує читання відповіді від Apps Script.
+          // В no-cors запит пройде, але відповідь буде opaque (її не прочитати) — це ок,
+          // бо ми й так перезавантажуємо дані після запису.
+          mode: 'no-cors',
           body: bodyJson
         });
         lastResponse = res;
-        if (res && res.ok) {
+        if (res) {
           lastError = null;
           break;
         }
-        const t = await res.text();
-        throw new Error(`HTTP ${res.status}: ${t.slice(0, 200)}`);
       } catch (e) {
         lastError = e;
       }
@@ -360,17 +359,7 @@ async function submitAddSaleForm(event) {
           updateManagerStats(managerId);
         }
       }
-      // Якщо відповідь була JSON — покажемо "success" як раніше
-      let okMessage = 'Продаж успішно додано!';
-      if (lastResponse) {
-        try {
-          const j = await lastResponse.clone().json();
-          if (j?.result && j.result !== 'success') okMessage = `Записано, але відповідь: ${j.result}`;
-        } catch {
-          // ignore
-        }
-      }
-      showNotification(okMessage, 'success');
+      showNotification('Запит на додавання продажу відправлено. Перевірте, що рядок зʼявився в таблиці.', 'success');
   } catch (error) {
     console.error('Помилка при додаванні продажу:', error);
     showNotification(`Помилка при додаванні продажу: ${error.message || error}`, 'error');
