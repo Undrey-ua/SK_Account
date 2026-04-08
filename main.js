@@ -359,7 +359,7 @@ async function submitAddSaleForm(event) {
           updateManagerStats(managerId);
         }
       }
-      showNotification('Запит на додавання продажу відправлено. Перевірте, що рядок зʼявився в таблиці.', 'success');
+      showNotification('Запит на додавання продажу відправлено. Зачекайте трохи ;)', 'success');
   } catch (error) {
     console.error('Помилка при додаванні продажу:', error);
     showNotification(`Помилка при додаванні продажу: ${error.message || error}`, 'error');
