@@ -10,22 +10,22 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🏪 Система обліку стендів та продажів</h1>
+            <h1>Система обліку стендів та продажів</h1>
             <p>Комплексна аналітика роботи з торговими точками</p>
         </div>
 
         <div class="tabs">
-            <button class="tab-btn active" onclick="showTab('andrii')">👨‍💼 Андрій (Київ)</button>
-            <button class="tab-btn" onclick="showTab('roman')">👨‍💼 Роман (Дніпро)</button>
-            <button class="tab-btn" onclick="showTab('pavlo')">👨‍💼 Павло (Захід)</button>
-            <button class="tab-btn" onclick="showTab('analytics')">📊 Порівняльна аналітика</button>
-            <button class="tab-btn" onclick="showTab('reserves')">📦 Резерви</button>
+            <button class="tab-btn active" onclick="showTab('andrii')">Андрій (Київ)</button>
+            <button class="tab-btn" onclick="showTab('roman')">Роман (Дніпро)</button>
+            <button class="tab-btn" onclick="showTab('pavlo')">Павло (Захід)</button>
+            <button class="tab-btn" onclick="showTab('analytics')">Порівняльна аналітика</button>
+            <button class="tab-btn" onclick="showTab('reserves')">Резерви</button>
         </div>
         
         <div id="andrii" class="tab-content active">
             <div class="manager-info">
                 <div class="manager-details">
-                    <h2>👨‍💼 Андрій Вовнянко</h2>
+                    <h2>Андрій Вовнянко</h2>
                     <p><span class="region-badge kyiv">Київ та область</span></p>
                 </div>
                 <div class="period-selectors">
@@ -49,11 +49,11 @@
             </div>
             
             <div class="goals-section">
-                <h3>🎯 Цілі на поточний місяць</h3>
+                <h3>Цілі на поточний місяць</h3>
                 <div class="goals-grid" id="andrii-goals"></div>
             </div>
             
-            <button class="add-btn" onclick="openAddSaleForm('andrii')">➕ Додати продаж</button>
+            <button class="add-btn" onclick="openAddSaleForm('andrii')">Додати продаж</button>
             <div class="table-scroll">
                 <table class="data-table" id="andrii-table">
                     <thead>
@@ -77,7 +77,7 @@
         <div id="roman" class="tab-content">
             <div class="manager-info">
                 <div class="manager-details">
-                    <h2>👨‍💼 Роман Ковальов</h2>
+                    <h2>Роман Ковальов</h2>
                     <p><span class="region-badge dnipro">Дніпро та область</span></p>
                 </div>
                 <div class="period-selectors">
@@ -100,10 +100,10 @@
                 </div>
             </div>
             <div class="goals-section">
-                <h3>🎯 Цілі на поточний місяць</h3>
+                <h3>Цілі на поточний місяць</h3>
                 <div class="goals-grid" id="roman-goals"></div>
             </div>
-            <button class="add-btn" onclick="openAddSaleForm('roman')">➕ Додати продаж</button>
+            <button class="add-btn" onclick="openAddSaleForm('roman')">Додати продаж</button>
             <div class="table-scroll">
                 <table class="data-table" id="roman-table">
                     <thead>
@@ -127,7 +127,7 @@
         <div id="pavlo" class="tab-content">
             <div class="manager-info">
                 <div class="manager-details">
-                    <h2>👨‍💼 Павло Ковалишин</h2>
+                    <h2>Павло Ковалишин</h2>
                     <p><span class="region-badge west">Захід України</span></p>
                 </div>
                 <div class="period-selectors">
@@ -150,10 +150,10 @@
                 </div>
             </div>
             <div class="goals-section">
-                <h3>🎯 Цілі на поточний місяць</h3>
+                <h3>Цілі на поточний місяць</h3>
                 <div class="goals-grid" id="pavlo-goals"></div>
             </div>
-            <button class="add-btn" onclick="openAddSaleForm('pavlo')">➕ Додати продаж</button>
+            <button class="add-btn" onclick="openAddSaleForm('pavlo')">Додати продаж</button>
             <div class="table-scroll">
                 <table class="data-table" id="pavlo-table">
                     <thead>
@@ -175,7 +175,7 @@
         </div>
         
         <div id="analytics" class="tab-content">
-            <h2>📊 Порівняльна аналітика</h2>
+            <h2>Порівняльна аналітика</h2>
             <div class="analytics-period-selectors period-selectors">
               <label>Менеджер:
                 <select id="analytics-manager">
@@ -194,7 +194,7 @@
             </div>
             <div id="analytics-table"></div>
 
-            <h3>🧮 Загальні показники</h3>
+            <h3>Загальні показники</h3>
             <div class="table-scroll">
                 <table class="data-table">
                     <thead>
@@ -207,7 +207,7 @@
                 </table>
             </div>
 
-            <h3>💰 Звіт продажів (місяць / квартал / рік)</h3>
+            <h3>Звіт продажів (місяць / квартал / рік)</h3>
             <div class="analytics-period-selectors period-selectors" style="margin-top: 10px;">
               <label>Період:
                 <select id="sales-report-period">
@@ -234,16 +234,16 @@
             <div id="sales-report-by-client"></div>
             <div id="sales-report-by-stand"></div>
 
-            <h3>✅ Стенди, що спрацювали в поточному місяці</h3>
+            <h3>Стенди, що спрацювали в поточному місяці</h3>
             <div id="stands-worked-current-month"></div>
 
-            <h3>⛔ Стенди, що не спрацювали за квартал та пів року</h3>
+            <h3>Стенди, що не спрацювали за квартал та пів року</h3>
             <div id="stands-not-worked"></div>
         </div>
         
         <div id="reserves" class="tab-content">
             <div class="reserves-inner">
-                <h2>📦 Резерви</h2>
+                <h2>Резерви</h2>
                 <div id="reserves-content">
                     <div class="table-scroll">
                         <table class="data-table" id="reserves-table">
@@ -269,7 +269,7 @@
         <div id="addSaleModal" class="modal">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h3>➕ Додати новий продаж</h3>
+                    <h3>Додати новий продаж</h3>
                     <button class="modal-close" onclick="closeAddSaleForm()">&times;</button>
                 </div>
                 <form id="addSaleForm" onsubmit="submitAddSaleForm(event)">
@@ -327,7 +327,7 @@
                             Скасувати
                         </button>
                         <button type="submit" class="btn-primary">
-                            💾 Зберегти продаж
+                            Зберегти продаж
                         </button>
                     </div>
                 </form>
