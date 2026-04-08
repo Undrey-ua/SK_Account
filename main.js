@@ -7,7 +7,45 @@ const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbwXd7RfsKj
 // === Аналітика: утиліти дат/періодів ===
 function parseSaleDateUTC(value) {
   if (!value) return null;
-  const d = new Date(value);
+
+  // Already a Date
+  if (value instanceof Date) {
+    return isNaN(value) ? null : value;
+  }
+
+  // Numeric timestamp
+  if (typeof value === 'number') {
+    const d = new Date(value);
+    return isNaN(d) ? null : d;
+  }
+
+  const s = String(value).trim();
+  if (!s) return null;
+
+  // ISO date-only: YYYY-MM-DD (force UTC midnight)
+  const isoDateOnly = /^(\d{4})-(\d{2})-(\d{2})$/;
+  const mIso = s.match(isoDateOnly);
+  if (mIso) {
+    const y = Number(mIso[1]);
+    const m = Number(mIso[2]);
+    const d = Number(mIso[3]);
+    const dt = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+    return isNaN(dt) ? null : dt;
+  }
+
+  // UA/EU date: DD.MM.YYYY (force UTC midnight)
+  const uaDate = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/;
+  const mUa = s.match(uaDate);
+  if (mUa) {
+    const d = Number(mUa[1]);
+    const m = Number(mUa[2]);
+    const y = Number(mUa[3]);
+    const dt = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+    return isNaN(dt) ? null : dt;
+  }
+
+  // Fallback (may include time/timezone). If it's valid, use it.
+  const d = new Date(s);
   return isNaN(d) ? null : d;
 }
 
@@ -359,7 +397,7 @@ async function submitAddSaleForm(event) {
           updateManagerStats(managerId);
         }
       }
-      showNotification('Запит на додавання продажу відправлено. Зачекайте трохи ;)', 'success');
+      showNotification('Запит на додавання продажу відправлено. Зачекайте трохи ;).', 'success');
   } catch (error) {
     console.error('Помилка при додаванні продажу:', error);
     showNotification(`Помилка при додаванні продажу: ${error.message || error}`, 'error');
@@ -486,17 +524,30 @@ function renderSalesMatrixForManager(manager) {
   document.getElementById(`${manager}-sales-matrix`).innerHTML = buildSalesMatrix(manager, month, year);
 }
 
-function showTab(tabName) {
+function setActiveTabButton(tabName) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  const btn = document.querySelector(`.tab-btn[data-tab="${CSS.escape(tabName)}"]`);
+  if (btn) btn.classList.add('active');
+}
+
+function getTabFromLocationHash() {
+  const raw = String(window.location.hash || '').replace(/^#/, '').trim();
+  return raw || null;
+}
+
+function showTab(tabName, options = {}) {
+  const { updateHash = true } = options;
   // Сховати всі вкладки
   document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
   // Показати потрібну вкладку, якщо вона існує
   const tabDiv = document.getElementById(tabName);
   if (tabDiv) tabDiv.classList.add('active');
-  // Зняти активний клас з усіх кнопок
-  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-  // Додати активний клас до поточної кнопки
-  const btn = document.querySelector(`.tab-btn[onclick*="showTab('${tabName}'"]`);
-  if (btn) btn.classList.add('active');
+  setActiveTabButton(tabName);
+
+  if (updateHash) {
+    const current = getTabFromLocationHash();
+    if (current !== tabName) window.location.hash = `#${tabName}`;
+  }
   if (tabName === 'andrii') renderSalesTableForManager('andrii');
   if (tabName === 'roman') renderSalesTableForManager('roman');
   if (tabName === 'pavlo') renderSalesTableForManager('pavlo');
@@ -972,7 +1023,8 @@ async function renderManagerTabs() {
   managers.forEach((manager, idx) => {
     const btn = document.createElement('button');
     btn.className = 'tab-btn' + (idx === 0 ? ' active' : '');
-    btn.textContent = `👨‍💼 ${manager['Імʼя']} (${manager['Регіон']})`;
+    btn.textContent = `${manager['Імʼя']} (${manager['Регіон']})`;
+    btn.dataset.tab = manager['ID'];
     btn.onclick = () => showTab(manager['ID']);
     tabsContainer.appendChild(btn);
 
@@ -990,15 +1042,35 @@ async function renderManagerTabs() {
   // Додаємо інші вкладки (аналітика, плани)
   const analyticsBtn = document.createElement('button');
   analyticsBtn.className = 'tab-btn';
-  analyticsBtn.textContent = '📊 Порівняльна аналітика';
+  analyticsBtn.textContent = 'Порівняльна аналітика';
+  analyticsBtn.dataset.tab = 'analytics';
   analyticsBtn.onclick = () => showTab('analytics');
   tabsContainer.appendChild(analyticsBtn);
 
   const reservesBtn = document.createElement('button');
   reservesBtn.className = 'tab-btn';
-  reservesBtn.textContent = '📦 Резерви';
+  reservesBtn.textContent = 'Резерви';
+  reservesBtn.dataset.tab = 'reserves';
   reservesBtn.onclick = () => showTab('reserves');
   tabsContainer.appendChild(reservesBtn);
+}
+
+function applyTabFromUrlOrDefault() {
+  const fromHash = getTabFromLocationHash();
+  if (fromHash && document.getElementById(fromHash)) {
+    showTab(fromHash, { updateHash: false });
+    return;
+  }
+
+  // keep current active if any, otherwise fallback to first tab button
+  const activeContent = document.querySelector('.tab-content.active')?.id;
+  if (activeContent && document.getElementById(activeContent)) {
+    setActiveTabButton(activeContent);
+    return;
+  }
+
+  const first = document.querySelector('.tab-btn[data-tab]')?.dataset?.tab;
+  if (first && document.getElementById(first)) showTab(first, { updateHash: false });
 }
 
 async function fillStandSelect(selectElement) {
@@ -1161,4 +1233,7 @@ document.addEventListener('DOMContentLoaded', async function() {
       fillShopSelect(saleShopSel, ['andrii', 'roman', 'pavlo'].includes(id) ? id : null);
     });
   }
+
+  applyTabFromUrlOrDefault();
+  window.addEventListener('hashchange', () => applyTabFromUrlOrDefault());
 }); 
