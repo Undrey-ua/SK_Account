@@ -1086,8 +1086,119 @@ function renderNotWorkedStands() {
   );
 }
 
+function renderInstalledStandsReports() {
+  const managerFilter = getSelectedAnalyticsManagerId();
+  const placements = getAllStandPlacements(managerFilter);
+
+  // Загалом по менеджеру
+  const byManagerTotal = new Map(); // managerId -> installed
+  placements.forEach(p => {
+    const managerId = String(p?.manager ?? '').trim();
+    if (!managerId) return;
+    byManagerTotal.set(managerId, (byManagerTotal.get(managerId) || 0) + numberOrZero(p.installed));
+  });
+  const byManagerTotalRows = [...byManagerTotal.entries()]
+    .map(([managerId, installed]) => ({ manager: managerIdToName(managerId), installed }))
+    .sort((a, b) => b.installed - a.installed);
+
+  // По менеджеру × стенд
+  const byManagerStand = new Map(); // key managerId||stand => installed
+  placements.forEach(p => {
+    const managerId = String(p?.manager ?? '').trim();
+    const stand = String(p?.stand ?? '').trim();
+    if (!managerId || !stand) return;
+    const key = `${managerId}||${stand}`;
+    byManagerStand.set(key, (byManagerStand.get(key) || 0) + numberOrZero(p.installed));
+  });
+  const byManagerRows = [...byManagerStand.entries()]
+    .map(([key, installed]) => {
+      const [managerId, stand] = key.split('||');
+      return { manager: managerIdToName(managerId), stand, installed };
+    })
+    .sort((a, b) => {
+      const m = a.manager.localeCompare(b.manager);
+      if (m !== 0) return m;
+      return b.installed - a.installed;
+    });
+
+  // Загалом по місту
+  const byCityTotal = new Map(); // city -> installed
+  placements.forEach(p => {
+    const city = String(p?.city ?? '').trim() || 'Невідомо';
+    byCityTotal.set(city, (byCityTotal.get(city) || 0) + numberOrZero(p.installed));
+  });
+  const byCityTotalRows = [...byCityTotal.entries()]
+    .map(([city, installed]) => ({ city, installed }))
+    .sort((a, b) => b.installed - a.installed);
+
+  // По місту × стенд
+  const byCityStand = new Map(); // key city||stand => installed
+  placements.forEach(p => {
+    const city = String(p?.city ?? '').trim() || 'Невідомо';
+    const stand = String(p?.stand ?? '').trim();
+    if (!stand) return;
+    const key = `${city}||${stand}`;
+    byCityStand.set(key, (byCityStand.get(key) || 0) + numberOrZero(p.installed));
+  });
+  const byCityRows = [...byCityStand.entries()]
+    .map(([key, installed]) => {
+      const [city, stand] = key.split('||');
+      return { city, stand, installed };
+    })
+    .sort((a, b) => {
+      const c = a.city.localeCompare(b.city);
+      if (c !== 0) return c;
+      return b.installed - a.installed;
+    });
+
+  const who = managerFilter === 'all' ? 'всі' : managerIdToName(managerFilter);
+
+  buildSimpleTable(
+    'stands-installed-total-by-manager',
+    [
+      { key: 'manager', label: 'Менеджер' },
+      { key: 'installed', label: 'Загальна к-сть встановлених', format: v => numberOrZero(v).toFixed(0) }
+    ],
+    byManagerTotalRows,
+    { title: `Всього стендів по менеджеру — (${who})` }
+  );
+
+  buildSimpleTable(
+    'stands-installed-by-manager',
+    [
+      { key: 'manager', label: 'Менеджер' },
+      { key: 'stand', label: 'Стенд (торгова марка)' },
+      { key: 'installed', label: 'К-сть встановлених', format: v => numberOrZero(v).toFixed(0) }
+    ],
+    byManagerRows,
+    { title: `Стенди у менеджерів — (${who})` }
+  );
+
+  buildSimpleTable(
+    'stands-installed-total-by-city',
+    [
+      { key: 'city', label: 'Місто' },
+      { key: 'installed', label: 'Загальна к-сть встановлених', format: v => numberOrZero(v).toFixed(0) }
+    ],
+    byCityTotalRows,
+    { title: `Всього стендів по містах — (${who})` }
+  );
+
+  buildSimpleTable(
+    'stands-installed-by-city',
+    [
+      { key: 'city', label: 'Місто' },
+      { key: 'stand', label: 'Стенд (торгова марка)' },
+      { key: 'installed', label: 'К-сть встановлених', format: v => numberOrZero(v).toFixed(0) }
+    ],
+    byCityRows,
+    { title: `Стенди по містах — (${who})` }
+  );
+}
+
 function renderAllNewAnalyticsBlocks() {
   renderAnalyticsSummary();
+  renderInstalledStandsReports();
   toggleSalesReportUI();
   renderSalesReports();
   renderWorkedStandsCurrentMonth();
