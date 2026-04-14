@@ -165,10 +165,11 @@ function getAllStandPlacements(managerFilter = 'all') {
     const data = cleanStandsMatrixRows(raw);
     if (!data.length) return;
     const headers = Object.keys(data[0] || {});
-    const standTypes = headers.filter(h => !['Назва ТТ', 'Адреса', 'Коментар'].includes(h));
+    const standTypes = headers.filter(h => !['Назва ТТ', 'Адреса', 'Місто', 'Коментар'].includes(h));
     data.forEach(row => {
       const shop = row['Назва ТТ'];
       const address = row['Адреса'] || '';
+      const city = row['Місто'] || '';
       if (!shop) return;
       standTypes.forEach(standType => {
         const installed = numberOrZero(row[standType]);
@@ -177,6 +178,7 @@ function getAllStandPlacements(managerFilter = 'all') {
             manager,
             shop,
             address,
+            city,
             stand: standType,
             installed
           });
@@ -185,6 +187,23 @@ function getAllStandPlacements(managerFilter = 'all') {
     });
   });
   return placements;
+}
+
+function buildShopCityIndex(managerFilter = 'all') {
+  const managers = normalizeManagerListFromFilter(managerFilter);
+  const idx = new Map(); // shop -> city
+  managers.forEach(manager => {
+    const raw = window.standsMatrixData?.[manager] || [];
+    const data = cleanStandsMatrixRows(raw);
+    data.forEach(row => {
+      const shop = String(row?.['Назва ТТ'] ?? '').trim();
+      if (!shop) return;
+      const city = String(row?.['Місто'] ?? '').trim();
+      if (!city) return;
+      if (!idx.has(shop)) idx.set(shop, city);
+    });
+  });
+  return idx;
 }
 
 function getSalesInRange(range, managerFilter = 'all') {
@@ -196,6 +215,26 @@ function getSalesInRange(range, managerFilter = 'all') {
     if (managerNameFilter && row['Менеджер'] !== managerNameFilter) return false;
     return true;
   });
+}
+
+function getCityForShopFromStandsMatrix(shop, managerId = null) {
+  const targetShop = String(shop ?? '').trim();
+  if (!targetShop) return '';
+
+  const managers = managerId ? [managerId] : ['andrii', 'roman', 'pavlo'];
+  for (const m of managers) {
+    const raw = window.standsMatrixData?.[m] || [];
+    const data = cleanStandsMatrixRows(raw);
+    for (const row of data) {
+      const s = String(row?.['Назва ТТ'] ?? '').trim();
+      if (!s) continue;
+      if (s === targetShop) {
+        const city = String(row?.['Місто'] ?? '').trim();
+        if (city) return city;
+      }
+    }
+  }
+  return '';
 }
 
 function buildSalesIndexByShopStand(range, managerFilter = 'all') {
@@ -341,13 +380,22 @@ async function submitAddSaleForm(event) {
     // Для звітів зберігаємо окрему ТМ прямо в полі "Стенд"
     standValue = bigBrand || standValue;
   }
+
+  const shopValue = String(formData.get('shop') ?? '').trim();
+  const managerName = String(formData.get('manager') ?? '').trim();
+  const managerId = managerNameToId(managerName);
+  const cityValue =
+    getCityForShopFromStandsMatrix(shopValue, ['andrii', 'roman', 'pavlo'].includes(managerId) ? managerId : null) ||
+    '';
+
   const saleData = {
-    'Торгова точка': formData.get('shop'),
+    'Торгова точка': shopValue,
     'Стенд': standValue,
     'Кількість': formData.get('quantity'),
     'Дата': formData.get('date'),
+    'Місто': cityValue,
     'Коментар': formData.get('comment'),
-    'Менеджер': formData.get('manager')
+    'Менеджер': managerName
   };
 
   try {
@@ -577,7 +625,7 @@ function buildStandsMatrix(data) {
   // Визначаємо всі заголовки
   const headers = Object.keys(data[0]);
   // Перші два — це "Назва ТТ" і "Адреса", решта — стенди
-  const mainCols = ['Назва ТТ', 'Адреса'];
+  const mainCols = ['Назва ТТ', 'Адреса', 'Місто'];
   const standTypes = headers.filter(h => !mainCols.includes(h));
   let html = '<table class="data-table"><thead><tr>';
   mainCols.forEach(col => html += `<th>${col}</th>`);
@@ -744,7 +792,7 @@ function renderAnalyticsTable() {
       // Підрахунок всіх стендів (сума по всіх клітинках, крім Назва ТТ і Адреса)
       const data = cleanStandsMatrixRows(window.standsMatrixData[manager]);
       const headers = Object.keys(data[0] || {});
-      const standTypes = headers.filter(h => !['Назва ТТ', 'Адреса', 'Коментар'].includes(h));
+      const standTypes = headers.filter(h => !['Назва ТТ', 'Адреса', 'Місто', 'Коментар'].includes(h));
       standsCount = data.reduce((sum, row) => {
         return sum + standTypes.reduce((s, type) => s + (Number(row[type]) || 0), 0);
       }, 0);
@@ -862,6 +910,7 @@ function renderSalesReports() {
   const managerFilter = getSelectedAnalyticsManagerId();
   const range = getSalesReportRangeFromUI();
   const sales = getSalesInRange(range, managerFilter);
+  const shopToCity = buildShopCityIndex(managerFilter);
 
   // По клієнтам (торгова точка)
   const byClient = new Map();
@@ -885,6 +934,39 @@ function renderSalesReports() {
     .map(([stand, qty]) => ({ stand, qty }))
     .sort((a, b) => b.qty - a.qty);
 
+  // По містах
+  const byCity = new Map(); // city -> qty
+  const cityTrademarkQty = new Map(); // city -> Map(trademark -> qty)
+  sales.forEach(row => {
+    const shop = String(row?.['Торгова точка'] ?? '').trim();
+    if (!shop) return;
+    const city =
+      String(row?.['Місто'] ?? '').trim() ||
+      String(shopToCity.get(shop) || '').trim() ||
+      'Невідомо';
+    byCity.set(city, (byCity.get(city) || 0) + numberOrZero(row['Кількість']));
+
+    const tm = normalizeTrademarkFromSaleRow(row);
+    if (tm) {
+      if (!cityTrademarkQty.has(city)) cityTrademarkQty.set(city, new Map());
+      const m = cityTrademarkQty.get(city);
+      m.set(tm, (m.get(tm) || 0) + numberOrZero(row['Кількість']));
+    }
+  });
+  const byCityRows = [...byCity.entries()]
+    .map(([city, qty]) => ({ city, qty }))
+    .sort((a, b) => b.qty - a.qty);
+
+  const cityTrademarkRows = [...cityTrademarkQty.entries()]
+    .flatMap(([city, m]) =>
+      [...m.entries()].map(([stand, qty]) => ({ city, stand, qty }))
+    )
+    .sort((a, b) => {
+      const c = a.city.localeCompare(b.city);
+      if (c !== 0) return c;
+      return b.qty - a.qty;
+    });
+
   buildSimpleTable(
     'sales-report-by-client',
     [
@@ -905,6 +987,27 @@ function renderSalesReports() {
     byStandRows
     ,
     { title: `По стендам (торговим маркам) — ${formatRangeLabel(range)} (${managerFilter === 'all' ? 'всі' : managerIdToName(managerFilter)})` }
+  );
+
+  buildSimpleTable(
+    'sales-report-by-city',
+    [
+      { key: 'city', label: 'Місто' },
+      { key: 'qty', label: 'Продано, кв м', format: v => numberOrZero(v).toFixed(3) }
+    ],
+    byCityRows,
+    { title: `По містах — ${formatRangeLabel(range)} (${managerFilter === 'all' ? 'всі' : managerIdToName(managerFilter)})` }
+  );
+
+  buildSimpleTable(
+    'sales-report-city-trademarks',
+    [
+      { key: 'city', label: 'Місто' },
+      { key: 'stand', label: 'Торгова марка' },
+      { key: 'qty', label: 'Продано, кв м', format: v => numberOrZero(v).toFixed(3) }
+    ],
+    cityTrademarkRows,
+    { title: `Торгові марки по містах — ${formatRangeLabel(range)} (${managerFilter === 'all' ? 'всі' : managerIdToName(managerFilter)})` }
   );
 }
 
