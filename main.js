@@ -1,8 +1,10 @@
 // === Глобальна змінна для сирих продажів ===
 let rawSalesData = [];
+let rawMonthlyPlansData = [];
 
 // === Apps Script endpoint (читання/запис) ===
 const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbwXd7RfsKj_0K9GRixoU0tSjo_23BtaCD048-epyzjLMG7hJ4N5ZtYFAJcfk0XfZ4rA/exec';
+const MONTHLY_PLAN_SHEET_NAME = 'План продажів';
 
 // === Аналітика: утиліти дат/періодів ===
 function parseSaleDateUTC(value) {
@@ -522,6 +524,12 @@ async function loadRawSales() {
   console.log('rawSalesData:', rawSalesData);
 }
 
+async function loadMonthlyPlans() {
+  const data = await fetchSheet(MONTHLY_PLAN_SHEET_NAME);
+  rawMonthlyPlansData = Array.isArray(data) ? data : [];
+  console.log('rawMonthlyPlansData:', rawMonthlyPlansData);
+}
+
 function buildSalesMatrix(manager, month, year) {
   const managerMap = { andrii: 'Андрій', roman: 'Роман', pavlo: 'Павло' };
   const filtered = rawSalesData.filter(row => {
@@ -756,6 +764,192 @@ function updateManagerStats(manager) {
 
   document.getElementById(`${manager}-sales`).textContent = totalSales.toFixed(2);
   document.getElementById(`${manager}-avg`).textContent = avgSales.toFixed(2);
+
+  // Синхронізуємо "Цілі на поточний місяць" з обраним періодом і фактом продажів
+  renderMonthlyGoalsForManager(manager);
+}
+
+function getSelectedMonthYearForManager(manager) {
+  const monthSel = document.querySelector(`.month-select[data-manager="${manager}"]`);
+  const yearSel = document.querySelector(`.year-select[data-manager="${manager}"]`);
+  const month = monthSel ? Number(monthSel.value) : (new Date().getMonth() + 1);
+  const year = yearSel ? Number(yearSel.value) : (new Date().getFullYear());
+  return { month, year };
+}
+
+function getMonthlySalesTotalSqm(manager, month, year) {
+  const managerMap = { andrii: 'Андрій', roman: 'Роман', pavlo: 'Павло' };
+  const managerName = managerMap[manager] || manager;
+  const filtered = rawSalesData.filter(row => {
+    if (!row['Дата'] || !row['Менеджер']) return false;
+    const d = new Date(row['Дата']);
+    if (isNaN(d)) return false;
+    return (
+      (d.getUTCMonth() + 1) === month &&
+      d.getUTCFullYear() === year &&
+      row['Менеджер'] === managerName
+    );
+  });
+  return filtered.reduce((sum, row) => sum + Number(row['Кількість'] || 0), 0);
+}
+
+function loadMonthlyPlanSqm(manager, month, year) {
+  const managerMap = { andrii: 'Андрій', roman: 'Роман', pavlo: 'Павло' };
+  const managerName = managerMap[manager] || manager;
+  if (!Array.isArray(rawMonthlyPlansData) || !rawMonthlyPlansData.length) return 0;
+
+  // Беремо останній запис (внизу таблиці), якщо дублікати
+  for (let i = rawMonthlyPlansData.length - 1; i >= 0; i--) {
+    const row = rawMonthlyPlansData[i] || {};
+    const rowManager = String(row['Менеджер'] ?? '').trim();
+    const rowMonth = Number(row['Місяць'] ?? row['Month'] ?? '');
+    const rowYear = Number(row['Рік'] ?? row['Year'] ?? '');
+    if (rowManager !== managerName) continue;
+    if (rowMonth !== month) continue;
+    if (rowYear !== year) continue;
+    const n = Number(row['План (кв м)'] ?? row['План'] ?? row['PlanSqm'] ?? 0);
+    return Number.isFinite(n) && n >= 0 ? n : 0;
+  }
+  return 0;
+}
+
+async function saveMonthlyPlanSqm(manager, month, year, value) {
+  const n = Number.parseInt(String(value ?? '').trim(), 10);
+  if (!Number.isFinite(n) || n < 0) return;
+  const managerMap = { andrii: 'Андрій', roman: 'Роман', pavlo: 'Павло' };
+  const managerName = managerMap[manager] || manager;
+
+  const payload = {
+    'Менеджер': managerName,
+    'Місяць': month,
+    'Рік': year,
+    'План (кв м)': n,
+    'Оновлено': new Date().toISOString()
+  };
+
+  // Оптимістично оновлюємо локальний кеш, щоб UI не "скакав"
+  rawMonthlyPlansData = Array.isArray(rawMonthlyPlansData) ? rawMonthlyPlansData : [];
+  rawMonthlyPlansData.push(payload);
+
+  try {
+    const url = `${APPS_SCRIPT_BASE_URL}?sheet=${encodeURIComponent(MONTHLY_PLAN_SHEET_NAME)}`;
+    const bodyJson = JSON.stringify(payload);
+    await fetch(url, {
+      method: 'POST',
+      mode: 'no-cors',
+      body: bodyJson
+    });
+    // Дамо час на запис і перезавантажимо плани для консистентності
+    await new Promise(r => setTimeout(r, 600));
+    await loadMonthlyPlans();
+  } catch (e) {
+    console.error('Помилка при збереженні плану:', e);
+    showNotification(`Помилка при збереженні плану: ${e.message || e}`, 'error');
+  }
+}
+
+function renderMonthlyGoalsForManager(manager) {
+  const container = document.getElementById(`${manager}-goals`);
+  if (!container) return;
+
+  const { month, year } = getSelectedMonthYearForManager(manager);
+  const plan = loadMonthlyPlanSqm(manager, month, year);
+  const fact = getMonthlySalesTotalSqm(manager, month, year);
+  const percent = plan > 0 ? (fact / plan) * 100 : 0;
+  const percentClamped = Math.max(0, Math.min(100, percent));
+  const progressClass = percent >= 100 ? 'progress-fill done' : (percent >= 80 ? 'progress-fill near' : 'progress-fill');
+
+  container.innerHTML = `
+    <div class="goal-card">
+      <div class="goal-title">План продажів (кв м)</div>
+      <div class="goal-row">
+        <label class="goal-label" for="${manager}-monthly-plan-input">План:</label>
+        <input
+          id="${manager}-monthly-plan-input"
+          class="goal-input"
+          type="number"
+          inputmode="numeric"
+          min="0"
+          step="1"
+          value="${Number.isFinite(plan) && plan > 0 ? String(Math.trunc(plan)) : ''}"
+          placeholder="Напр., 120"
+          data-manager="${manager}"
+          data-month="${month}"
+          data-year="${year}"
+          data-original="${Number.isFinite(plan) ? String(Math.trunc(plan)) : ''}"
+        />
+        <button
+          type="button"
+          class="goal-save-btn"
+          data-manager="${manager}"
+          data-month="${month}"
+          data-year="${year}"
+          disabled
+        >Зберегти</button>
+      </div>
+      <div class="progress-bar" role="progressbar" aria-valuenow="${Math.round(percent)}" aria-valuemin="0" aria-valuemax="100">
+        <div class="${progressClass}" style="width: ${percentClamped.toFixed(1)}%">${plan > 0 ? `${Math.round(percent)}%` : ''}</div>
+      </div>
+      <div class="goal-meta">
+        <span>Факт: <b>${fact.toFixed(2)}</b></span>
+        <span>План: <b>${plan ? plan.toFixed(2) : '—'}</b></span>
+        <span>Виконання: <b>${plan > 0 ? `${Math.round(percent)}%` : '—'}</b></span>
+      </div>
+    </div>
+  `;
+
+  const input = container.querySelector('input.goal-input');
+  const saveBtn = container.querySelector('button.goal-save-btn');
+  if (input) {
+    const normalizeIntString = (v) => {
+      const s = String(v ?? '').trim();
+      if (!s) return '';
+      // allow only digits
+      const digits = s.replace(/[^\d]/g, '');
+      if (!digits) return '';
+      // trim leading zeros but keep single zero
+      return digits.replace(/^0+(?=\d)/, '');
+    };
+
+    const syncSaveState = () => {
+      if (!saveBtn) return;
+      const original = String(input.getAttribute('data-original') || '');
+      const current = normalizeIntString(input.value);
+      const changed = current !== original;
+      const valid = current !== '';
+      saveBtn.disabled = !(changed && valid);
+    };
+
+    input.addEventListener('input', () => {
+      const norm = normalizeIntString(input.value);
+      if (input.value !== norm) input.value = norm;
+      syncSaveState();
+    }, { passive: true });
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && saveBtn && !saveBtn.disabled) {
+        e.preventDefault();
+        saveBtn.click();
+      }
+    });
+
+    syncSaveState();
+  }
+
+  if (saveBtn && input) {
+    saveBtn.addEventListener('click', async () => {
+      const m = String(saveBtn.getAttribute('data-manager') || '').trim();
+      const mm = Number(saveBtn.getAttribute('data-month'));
+      const yy = Number(saveBtn.getAttribute('data-year'));
+      saveBtn.disabled = true;
+      input.disabled = true;
+      await saveMonthlyPlanSqm(m, mm, yy, input.value);
+      input.disabled = false;
+      // Перерендер з актуальним планом з бекенду
+      renderMonthlyGoalsForManager(m);
+      showNotification('План продажів збережено.', 'success');
+    });
+  }
 }
 
 function renderAnalyticsTable() {
@@ -1357,6 +1551,7 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   (async function initSalesMatrices() {
     await loadRawSales();
+    await loadMonthlyPlans();
     renderSalesMatrixForManager('andrii');
     renderSalesMatrixForManager('roman');
     renderSalesMatrixForManager('pavlo');
