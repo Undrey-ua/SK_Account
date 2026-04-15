@@ -165,6 +165,79 @@ body {
     margin-bottom: 10px;
 }
 
+.goal-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0 6px 0;
+}
+
+.goal-label {
+    color: var(--muted);
+    font-weight: 600;
+    font-size: 0.95em;
+    min-width: 50px;
+}
+
+.goal-input {
+    flex: 1;
+    border: 1.5px solid #b3c6e0;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 14px;
+    outline: none;
+    box-shadow: 0 1px 4px rgba(33,150,243,0.08);
+    transition: border-color 0.2s, box-shadow 0.2s;
+    background: #fff;
+    color: var(--text);
+}
+
+.goal-input:focus {
+    border-color: var(--primary-2);
+    box-shadow: 0 0 0 3px var(--primary-weak);
+}
+
+.goal-save-btn {
+    background: var(--primary-2);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, opacity 0.2s ease;
+    white-space: nowrap;
+}
+
+.goal-save-btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 22px rgba(37, 99, 235, 0.20);
+}
+
+.goal-save-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+    filter: grayscale(0.2);
+}
+
+.goal-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 14px;
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.progress-fill.near {
+    background: #0ea5e9;
+}
+
+.progress-fill.done {
+    background: #16a34a;
+}
+
 .progress-bar {
     background: #ecf0f1;
     height: 20px;
