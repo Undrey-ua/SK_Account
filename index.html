@@ -53,7 +53,10 @@
                 <div class="goals-grid" id="andrii-goals"></div>
             </div>
             
-            <button class="add-btn" onclick="openAddSaleForm('andrii')">Додати продаж</button>
+            <div class="manager-actions">
+            <button type="button" class="add-btn" onclick="openAddSaleForm('andrii')">Додати продаж</button>
+            <button type="button" class="add-btn add-btn-secondary" onclick="openClientStandForm('andrii')">Клієнти та стенди</button>
+            </div>
             <div class="table-scroll">
                 <table class="data-table" id="andrii-table">
                     <thead>
@@ -103,7 +106,10 @@
                 <h3>Цілі на поточний місяць</h3>
                 <div class="goals-grid" id="roman-goals"></div>
             </div>
-            <button class="add-btn" onclick="openAddSaleForm('roman')">Додати продаж</button>
+            <div class="manager-actions">
+            <button type="button" class="add-btn" onclick="openAddSaleForm('roman')">Додати продаж</button>
+            <button type="button" class="add-btn add-btn-secondary" onclick="openClientStandForm('roman')">Клієнти та стенди</button>
+            </div>
             <div class="table-scroll">
                 <table class="data-table" id="roman-table">
                     <thead>
@@ -153,7 +159,10 @@
                 <h3>Цілі на поточний місяць</h3>
                 <div class="goals-grid" id="pavlo-goals"></div>
             </div>
-            <button class="add-btn" onclick="openAddSaleForm('pavlo')">Додати продаж</button>
+            <div class="manager-actions">
+            <button type="button" class="add-btn" onclick="openAddSaleForm('pavlo')">Додати продаж</button>
+            <button type="button" class="add-btn add-btn-secondary" onclick="openClientStandForm('pavlo')">Клієнти та стенди</button>
+            </div>
             <div class="table-scroll">
                 <table class="data-table" id="pavlo-table">
                     <thead>
@@ -341,8 +350,109 @@
                 </form>
             </div>
         </div>
+
+        <!-- Клієнт (ТТ) і облік стендів -->
+        <div id="clientStandModal" class="modal" style="display:none;">
+            <div class="modal-content modal-wide">
+                <div class="modal-header">
+                    <h3>Клієнт та стенди</h3>
+                    <button type="button" class="modal-close" onclick="closeClientStandForm()" aria-label="Закрити">&times;</button>
+                </div>
+                <form id="clientStandForm" onsubmit="submitClientStandForm(event)">
+                    <input type="hidden" id="csf-original-shop" value="" />
+                    <div class="form-group">
+                        <label for="csf-manager">Менеджер (регіон)</label>
+                        <select id="csf-manager" required>
+                            <option value="andrii">Андрій (Київ)</option>
+                            <option value="roman">Роман (Дніпро)</option>
+                            <option value="pavlo">Павло (Захід)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="csf-mode">Режим</label>
+                        <select id="csf-mode">
+                            <option value="new">Новий клієнт</option>
+                            <option value="edit">Редагувати існуючого</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="csf-shop-pick-wrap" style="display:none;">
+                        <label for="csf-shop-pick">Оберіть клієнта</label>
+                        <select id="csf-shop-pick"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="csf-shop-name">Назва ТТ</label>
+                        <input type="text" id="csf-shop-name" required autocomplete="off" />
+                    </div>
+                    <div class="form-group">
+                        <label for="csf-address">Адреса</label>
+                        <input type="text" id="csf-address" autocomplete="off" />
+                    </div>
+                    <div class="form-group">
+                        <label for="csf-city">Місто</label>
+                        <input type="text" id="csf-city" autocomplete="off" />
+                    </div>
+                    <div class="form-group">
+                        <label for="csf-comment">Коментар</label>
+                        <textarea id="csf-comment" rows="2" placeholder="Необовʼязково"></textarea>
+                    </div>
+                    <div class="csf-stand-section">
+                        <h4 class="csf-subheading">Кількість стендів</h4>
+                        <div id="csf-stand-grid" class="csf-stand-grid"></div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn-secondary" onclick="closeClientStandForm()">Скасувати</button>
+                        <button type="button" class="btn-secondary" id="csf-delete-btn" style="display:none;">Видалити клієнта</button>
+                        <button type="submit" class="btn-primary">Зберегти</button>
+                    </div>
+                </form>
+                <div class="csf-move-block">
+                    <h4 class="csf-subheading">Перемістити стенди</h4>
+                    <p class="csf-hint">Знімає вказану кількість у відправника й додає отримувачу. Отримувач може бути існуючим клієнтом або новим (на цьому ж менеджері).</p>
+                    <div class="form-group">
+                        <label for="csf-move-from">Від кого</label>
+                        <select id="csf-move-from"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="csf-move-stand">Стенд</label>
+                        <select id="csf-move-stand"></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="csf-move-qty">Кількість</label>
+                        <input type="number" id="csf-move-qty" min="1" step="1" value="1" />
+                    </div>
+                    <div class="form-group">
+                        <label for="csf-move-target-kind">Отримувач</label>
+                        <select id="csf-move-target-kind">
+                            <option value="existing">Існуючий клієнт</option>
+                            <option value="new">Новий клієнт</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="csf-move-target-existing-wrap">
+                        <label for="csf-move-target-shop">Клієнт</label>
+                        <select id="csf-move-target-shop"></select>
+                    </div>
+                    <div id="csf-move-target-new-wrap" style="display:none;">
+                        <div class="form-group">
+                            <label for="csf-move-new-name">Назва нової ТТ</label>
+                            <input type="text" id="csf-move-new-name" autocomplete="off" />
+                        </div>
+                        <div class="form-group">
+                            <label for="csf-move-new-address">Адреса</label>
+                            <input type="text" id="csf-move-new-address" autocomplete="off" />
+                        </div>
+                        <div class="form-group">
+                            <label for="csf-move-new-city">Місто</label>
+                            <input type="text" id="csf-move-new-city" autocomplete="off" />
+                        </div>
+                    </div>
+                    <div class="form-actions csf-move-actions">
+                        <button type="button" class="btn-primary" id="csf-move-btn">Перемістити</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <script src="main.js?v=2026-04-07-1" defer></script>
+    <script src="main.js?v=2026-04-17-1" defer></script>
 </body>
 </html>
