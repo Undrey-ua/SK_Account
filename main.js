@@ -359,17 +359,21 @@ function closeAddSaleForm() {
 
 // Закриття модального вікна при кліку поза ним
 document.addEventListener('click', function(event) {
-  const modal = document.getElementById('addSaleModal');
-  if (modal && event.target === modal) {
-    closeAddSaleForm();
-  }
+  const saleModal = document.getElementById('addSaleModal');
+  if (saleModal && event.target === saleModal) closeAddSaleForm();
+  const clientModal = document.getElementById('clientStandModal');
+  if (clientModal && event.target === clientModal) closeClientStandForm();
 });
 
 // Закриття модального вікна при натисканні Escape
 document.addEventListener('keydown', function(event) {
-  if (event.key === 'Escape') {
-    closeAddSaleForm();
+  if (event.key !== 'Escape') return;
+  const clientModal = document.getElementById('clientStandModal');
+  if (clientModal && clientModal.style.display === 'flex') {
+    closeClientStandForm();
+    return;
   }
+  closeAddSaleForm();
 });
 
 async function submitAddSaleForm(event) {
@@ -469,6 +473,431 @@ function showNotification(message, type = 'info') {
     notification.classList.remove('show');
     setTimeout(() => notification.remove(), 300);
   }, 3000);
+}
+
+// === Клієнт (ТТ) і матриця стендів: форма + запис у Google Sheet ===
+// Очікуваний контракт для Apps Script (query до того ж APPS_SCRIPT_BASE_URL):
+//   ?sheet=Облік стендів(Андрій|Роман|Павло)&standsWrite=1&standsAction=upsert|delete|move
+//   Для upsert: опційно &standsMatchShop=... (назва ДО зміни; порожньо = новий рядок).
+//   Тіло POST: JSON як text/plain (як у продажах), для upsert — об'єкт рядка матриці;
+//   для delete — {} або той самий рядок; для move — див. postStandsMatrixMove().
+const STANDS_MATRIX_META_KEYS = ['Назва ТТ', 'Адреса', 'Місто', 'Коментар'];
+
+function standsMatrixSheetTitle(managerId) {
+  return `Облік стендів(${managerIdToName(managerId)})`;
+}
+
+function getStandTypeKeysFromRow(sampleRow) {
+  if (!sampleRow || typeof sampleRow !== 'object') return [];
+  return Object.keys(sampleRow).filter(k => !STANDS_MATRIX_META_KEYS.includes(k));
+}
+
+function cloneStandsRowStructure(sampleRow) {
+  const row = {};
+  Object.keys(sampleRow).forEach(k => {
+    if (STANDS_MATRIX_META_KEYS.includes(k)) row[k] = '';
+    else row[k] = 0;
+  });
+  return row;
+}
+
+function getBlankStandsDataRow(managerId) {
+  const raw = window.standsMatrixData?.[managerId] || [];
+  const sample = raw[0];
+  if (sample) return cloneStandsRowStructure(sample);
+  return null;
+}
+
+function findStandsRowIndexByShop(managerId, shopName) {
+  const key = String(shopName ?? '').trim();
+  const list = window.standsMatrixData?.[managerId];
+  if (!Array.isArray(list) || !key) return -1;
+  return list.findIndex(r => String(r?.['Назва ТТ'] ?? '').trim() === key);
+}
+
+function paintStandsMatrixForManager(managerId) {
+  const el = document.getElementById(`${managerId}-stands-matrix`);
+  if (!el) return;
+  const data = window.standsMatrixData?.[managerId] || [];
+  el.innerHTML = buildStandsMatrix(data.length ? data : []);
+}
+
+async function postStandsMatrixOp(managerId, action, bodyObj, matchShop = '') {
+  const sheet = standsMatrixSheetTitle(managerId);
+  const params = new URLSearchParams({
+    sheet,
+    standsWrite: '1',
+    standsAction: action
+  });
+  const m = String(matchShop ?? '').trim();
+  if (m) params.set('standsMatchShop', m);
+  const url = `${APPS_SCRIPT_BASE_URL}?${params.toString()}`;
+  await fetch(url, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: JSON.stringify(bodyObj ?? {})
+  });
+}
+
+async function postStandsMatrixMove(managerId, payload) {
+  const sheet = standsMatrixSheetTitle(managerId);
+  const params = new URLSearchParams({ sheet, standsWrite: '1', standsAction: 'move' });
+  const url = `${APPS_SCRIPT_BASE_URL}?${params.toString()}`;
+  await fetch(url, {
+    method: 'POST',
+    mode: 'no-cors',
+    body: JSON.stringify(payload)
+  });
+}
+
+function applyStandsUpsertLocal(managerId, matchShop, row) {
+  if (!window.standsMatrixData) window.standsMatrixData = {};
+  const list = Array.isArray(window.standsMatrixData[managerId])
+    ? window.standsMatrixData[managerId]
+    : [];
+  const m = String(matchShop ?? '').trim();
+  const name = String(row['Назва ТТ'] ?? '').trim();
+  if (!name) return;
+  let idx = m ? findStandsRowIndexByShop(managerId, m) : -1;
+  if (idx < 0) idx = findStandsRowIndexByShop(managerId, name);
+  if (idx >= 0) list[idx] = { ...list[idx], ...row };
+  else list.push({ ...row });
+  window.standsMatrixData[managerId] = list;
+}
+
+function applyStandsDeleteLocal(managerId, shopName) {
+  const key = String(shopName ?? '').trim();
+  if (!key || !window.standsMatrixData?.[managerId]) return;
+  window.standsMatrixData[managerId] = window.standsMatrixData[managerId].filter(
+    r => String(r?.['Назва ТТ'] ?? '').trim() !== key
+  );
+}
+
+function applyStandsMoveLocal(managerId, fromShop, toShop, stand, qty, newRecipientMeta) {
+  const norm = s => String(s ?? '').trim();
+  const from = norm(fromShop);
+  const to = norm(toShop);
+  const q = Math.floor(Number(qty)) || 0;
+  if (!from || !to || from === to || q < 1) return { ok: false, message: 'Перевірте клієнтів і кількість.' };
+  const list = window.standsMatrixData?.[managerId];
+  if (!Array.isArray(list) || !list.length) return { ok: false, message: 'Немає даних матриці.' };
+
+  const iFrom = findStandsRowIndexByShop(managerId, from);
+  if (iFrom < 0) return { ok: false, message: 'Не знайдено клієнта-відправника.' };
+  const available = numberOrZero(list[iFrom][stand]);
+  if (available < q) return { ok: false, message: 'Недостатньо стендів у відправника.' };
+
+  let iTo = findStandsRowIndexByShop(managerId, to);
+  if (iTo < 0) {
+    const base = cloneStandsRowStructure(list[iFrom]);
+    const nr = {
+      ...base,
+      'Назва ТТ': to,
+      'Адреса': newRecipientMeta?.address ?? '',
+      'Місто': newRecipientMeta?.city ?? '',
+      'Коментар': newRecipientMeta?.comment ?? ''
+    };
+    nr[stand] = q;
+    list.push(nr);
+  } else {
+    list[iFrom][stand] = available - q;
+    list[iTo][stand] = numberOrZero(list[iTo][stand]) + q;
+    return { ok: true };
+  }
+  list[iFrom][stand] = available - q;
+  return { ok: true };
+}
+
+async function refreshStandsAfterWrite(managerId) {
+  await new Promise(r => setTimeout(r, 700));
+  window.standsMatrixData[managerId] = await loadStandsMatrix(managerId);
+  paintStandsMatrixForManager(managerId);
+  renderAllNewAnalyticsBlocks();
+  updateManagerStats(managerId);
+}
+
+function collectRowFromClientStandForm() {
+  const row = {
+    'Назва ТТ': String(document.getElementById('csf-shop-name')?.value ?? '').trim(),
+    'Адреса': String(document.getElementById('csf-address')?.value ?? '').trim(),
+    'Місто': String(document.getElementById('csf-city')?.value ?? '').trim(),
+    'Коментар': String(document.getElementById('csf-comment')?.value ?? '').trim()
+  };
+  document.querySelectorAll('#csf-stand-grid input[data-stand-col]').forEach(inp => {
+    const col = inp.getAttribute('data-stand-col');
+    if (!col) return;
+    row[col] = numberOrZero(inp.value);
+  });
+  return row;
+}
+
+function renderClientStandGridFromRow(row) {
+  const grid = document.getElementById('csf-stand-grid');
+  if (!grid || !row) {
+    if (grid) grid.innerHTML = '<p class="csf-hint">Немає колонок стендів. Завантажте матрицю або вкладку «Стенди».</p>';
+    return;
+  }
+  const keys = getStandTypeKeysFromRow(row);
+  if (!keys.length) {
+    grid.innerHTML = '<p class="csf-hint">У матриці ще немає колонок стендів.</p>';
+    return;
+  }
+  grid.innerHTML = keys.map((k, i) => {
+    const id = `csf-s-${i}`;
+    const v = numberOrZero(row[k]);
+    return `<label for="${id}">${escapeHtml(k)}</label><input type="number" id="${id}" min="0" step="1" data-stand-col="${escapeHtml(k)}" value="${v}" />`;
+  }).join('');
+
+  const moveStand = document.getElementById('csf-move-stand');
+  if (moveStand) {
+    moveStand.innerHTML = keys.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
+  }
+}
+
+function getShopsForManager(managerId) {
+  const data = cleanStandsMatrixRows(window.standsMatrixData?.[managerId] || []);
+  const shops = [...new Set(data.map(r => String(r['Назва ТТ'] ?? '').trim()).filter(Boolean))];
+  return shops.sort((a, b) => a.localeCompare(b, 'uk'));
+}
+
+function fillClientStandShopPick(managerId, selectedShop = '') {
+  const sel = document.getElementById('csf-shop-pick');
+  if (!sel) return;
+  const shops = getShopsForManager(managerId);
+  if (!shops.length) {
+    sel.innerHTML = '<option value="">Немає клієнтів у матриці</option>';
+    return;
+  }
+  sel.innerHTML = shops.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  if (selectedShop && shops.includes(selectedShop)) sel.value = selectedShop;
+  else sel.value = shops[0];
+}
+
+function fillClientStandMoveSelects(managerId) {
+  const shops = getShopsForManager(managerId);
+  const fromSel = document.getElementById('csf-move-from');
+  const toSel = document.getElementById('csf-move-target-shop');
+  const standSel = document.getElementById('csf-move-stand');
+  if (!fromSel || !toSel || !standSel) return;
+
+  if (!shops.length) {
+    fromSel.innerHTML = '<option value="">Немає клієнтів</option>';
+    toSel.innerHTML = '<option value="">Немає клієнтів</option>';
+    return;
+  }
+
+  fromSel.innerHTML = shops.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  toSel.innerHTML = shops.map(s => `<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+
+  const sample = (window.standsMatrixData?.[managerId] || [])[0];
+  let standKeys = getStandTypeKeysFromRow(sample);
+  if (!standKeys.length) {
+    standKeys = [...document.querySelectorAll('#csf-stand-grid input[data-stand-col]')]
+      .map(inp => inp.getAttribute('data-stand-col'))
+      .filter(Boolean);
+  }
+  if (standKeys.length) {
+    standSel.innerHTML = standKeys.map(k => `<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
+  }
+}
+
+function syncClientStandModeUi() {
+  const mode = document.getElementById('csf-mode')?.value || 'new';
+  const wrap = document.getElementById('csf-shop-pick-wrap');
+  const delBtn = document.getElementById('csf-delete-btn');
+  const orig = document.getElementById('csf-original-shop');
+  if (wrap) wrap.style.display = mode === 'edit' ? '' : 'none';
+  if (delBtn) delBtn.style.display = mode === 'edit' ? '' : 'none';
+  if (mode === 'new' && orig) orig.value = '';
+}
+
+function loadClientStandEditorFromShop(managerId, shopName) {
+  const key = String(shopName ?? '').trim();
+  if (!key) return;
+  const idx = findStandsRowIndexByShop(managerId, key);
+  const row = idx >= 0 ? window.standsMatrixData[managerId][idx] : null;
+  const orig = document.getElementById('csf-original-shop');
+  if (orig) orig.value = key;
+  if (!row) return;
+  document.getElementById('csf-shop-name').value = String(row['Назва ТТ'] ?? '');
+  document.getElementById('csf-address').value = String(row['Адреса'] ?? '');
+  document.getElementById('csf-city').value = String(row['Місто'] ?? '');
+  document.getElementById('csf-comment').value = String(row['Коментар'] ?? '');
+  renderClientStandGridFromRow(row);
+}
+
+async function ensureClientStandTemplate(managerId) {
+  let raw = window.standsMatrixData?.[managerId];
+  if (!raw?.length) {
+    raw = await loadStandsMatrix(managerId);
+    if (!window.standsMatrixData) window.standsMatrixData = {};
+    window.standsMatrixData[managerId] = raw;
+  }
+  if (raw?.length) return getBlankStandsDataRow(managerId);
+  const stands = await loadStandsList();
+  const row = { 'Назва ТТ': '', 'Адреса': '', 'Місто': '', 'Коментар': '' };
+  stands.forEach(name => {
+    if (name) row[String(name)] = 0;
+  });
+  return row;
+}
+
+async function openClientStandForm(managerId = 'andrii') {
+  const modal = document.getElementById('clientStandModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+
+  const mid = ['andrii', 'roman', 'pavlo'].includes(managerId) ? managerId : 'andrii';
+  const mgrSel = document.getElementById('csf-manager');
+  if (mgrSel) mgrSel.value = mid;
+
+  const modeSel = document.getElementById('csf-mode');
+  if (modeSel) modeSel.value = 'new';
+  syncClientStandModeUi();
+
+  const blank = await ensureClientStandTemplate(mid);
+  document.getElementById('csf-shop-name').value = '';
+  document.getElementById('csf-address').value = '';
+  document.getElementById('csf-city').value = '';
+  document.getElementById('csf-comment').value = '';
+  renderClientStandGridFromRow(blank);
+
+  fillClientStandShopPick(mid);
+  fillClientStandMoveSelects(mid);
+}
+
+function closeClientStandForm() {
+  const modal = document.getElementById('clientStandModal');
+  if (modal) modal.style.display = 'none';
+  const form = document.getElementById('clientStandForm');
+  if (form) form.reset();
+  syncClientStandModeUi();
+}
+
+async function submitClientStandForm(event) {
+  event.preventDefault();
+  const managerId = document.getElementById('csf-manager')?.value;
+  const mode = document.getElementById('csf-mode')?.value || 'new';
+  if (!['andrii', 'roman', 'pavlo'].includes(managerId)) return;
+
+  const row = collectRowFromClientStandForm();
+  if (!row['Назва ТТ']) {
+    showNotification('Вкажіть назву ТТ.', 'error');
+    return;
+  }
+
+  const original = String(document.getElementById('csf-original-shop')?.value ?? '').trim();
+  const matchShop = mode === 'edit' ? original : '';
+
+  if (mode === 'edit' && !matchShop) {
+    showNotification('Оберіть клієнта для редагування.', 'error');
+    return;
+  }
+
+  try {
+    await postStandsMatrixOp(managerId, 'upsert', row, matchShop);
+    applyStandsUpsertLocal(managerId, matchShop, row);
+    paintStandsMatrixForManager(managerId);
+    renderAllNewAnalyticsBlocks();
+    updateManagerStats(managerId);
+    showNotification('Запит на збереження клієнта відправлено.', 'success');
+    await refreshStandsAfterWrite(managerId);
+    fillShopSelect(document.getElementById('sale-shop-select'), managerId);
+    closeClientStandForm();
+  } catch (e) {
+    console.error(e);
+    showNotification(`Помилка: ${e.message || e}`, 'error');
+  }
+}
+
+async function onClientStandDelete() {
+  const managerId = document.getElementById('csf-manager')?.value;
+  const mode = document.getElementById('csf-mode')?.value;
+  const original = String(document.getElementById('csf-original-shop')?.value ?? '').trim();
+  if (mode !== 'edit' || !original) return;
+  if (!confirm(`Видалити клієнта «${original}» з матриці?`)) return;
+  try {
+    await postStandsMatrixOp(managerId, 'delete', { 'Назва ТТ': original }, original);
+    applyStandsDeleteLocal(managerId, original);
+    paintStandsMatrixForManager(managerId);
+    renderAllNewAnalyticsBlocks();
+    updateManagerStats(managerId);
+    showNotification('Запит на видалення відправлено.', 'success');
+    await refreshStandsAfterWrite(managerId);
+    fillShopSelect(document.getElementById('sale-shop-select'), managerId);
+    closeClientStandForm();
+  } catch (e) {
+    console.error(e);
+    showNotification(`Помилка: ${e.message || e}`, 'error');
+  }
+}
+
+async function onClientStandMoveClick() {
+  const managerId = document.getElementById('csf-manager')?.value;
+  if (!['andrii', 'roman', 'pavlo'].includes(managerId)) return;
+
+  const fromShop = String(document.getElementById('csf-move-from')?.value ?? '').trim();
+  const stand = String(document.getElementById('csf-move-stand')?.value ?? '').trim();
+  const qty = Math.floor(Number(document.getElementById('csf-move-qty')?.value ?? '0'));
+  const kind = document.getElementById('csf-move-target-kind')?.value || 'existing';
+
+  let toShop = '';
+  let newMeta = null;
+  if (kind === 'existing') {
+    toShop = String(document.getElementById('csf-move-target-shop')?.value ?? '').trim();
+  } else {
+    toShop = String(document.getElementById('csf-move-new-name')?.value ?? '').trim();
+    newMeta = {
+      address: String(document.getElementById('csf-move-new-address')?.value ?? '').trim(),
+      city: String(document.getElementById('csf-move-new-city')?.value ?? '').trim(),
+      comment: ''
+    };
+    if (!toShop) {
+      showNotification('Вкажіть назву нової ТТ.', 'error');
+      return;
+    }
+  }
+
+  if (!fromShop || !stand || qty < 1) {
+    showNotification('Заповніть поля переміщення.', 'error');
+    return;
+  }
+  if (fromShop === toShop) {
+    showNotification('Відправник і отримувач не повинні збігатися.', 'error');
+    return;
+  }
+
+  const movePayload = {
+    fromShop,
+    toShop,
+    stand,
+    quantity: qty,
+    toIsNew: kind === 'new',
+    toRow: newMeta
+      ? { 'Адреса': newMeta.address, 'Місто': newMeta.city, 'Коментар': newMeta.comment }
+      : undefined
+  };
+
+  const local = applyStandsMoveLocal(managerId, fromShop, toShop, stand, qty, newMeta);
+  if (!local.ok) {
+    showNotification(local.message || 'Не вдалося перемістити', 'error');
+    return;
+  }
+
+  try {
+    await postStandsMatrixMove(managerId, movePayload);
+    paintStandsMatrixForManager(managerId);
+    renderAllNewAnalyticsBlocks();
+    updateManagerStats(managerId);
+    showNotification('Переміщення застосовано локально; запит на запис відправлено.', 'success');
+    await refreshStandsAfterWrite(managerId);
+    fillClientStandShopPick(managerId);
+    fillClientStandMoveSelects(managerId);
+    fillShopSelect(document.getElementById('sale-shop-select'), managerId);
+  } catch (e) {
+    console.error(e);
+    showNotification(`Помилка: ${e.message || e}`, 'error');
+  }
 }
 
 // === Функції для завантаження списків ===
@@ -1642,6 +2071,77 @@ document.addEventListener('DOMContentLoaded', async function() {
       fillShopSelect(saleShopSel, ['andrii', 'roman', 'pavlo'].includes(id) ? id : null);
     });
   }
+
+  const csfMode = document.getElementById('csf-mode');
+  const csfManager = document.getElementById('csf-manager');
+  const csfShopPick = document.getElementById('csf-shop-pick');
+  const csfMoveKind = document.getElementById('csf-move-target-kind');
+  const csfMoveBtn = document.getElementById('csf-move-btn');
+  const csfDeleteBtn = document.getElementById('csf-delete-btn');
+
+  const syncMoveTargetVisibility = () => {
+    const isNew = csfMoveKind && csfMoveKind.value === 'new';
+    const ew = document.getElementById('csf-move-target-existing-wrap');
+    const nw = document.getElementById('csf-move-target-new-wrap');
+    if (ew) ew.style.display = isNew ? 'none' : '';
+    if (nw) nw.style.display = isNew ? '' : 'none';
+  };
+
+  if (csfMoveKind) csfMoveKind.addEventListener('change', syncMoveTargetVisibility);
+  syncMoveTargetVisibility();
+
+  if (csfMode) {
+    csfMode.addEventListener('change', async () => {
+      syncClientStandModeUi();
+      const mid = csfManager?.value || 'andrii';
+      if (csfMode.value === 'edit') {
+        await ensureClientStandTemplate(mid);
+        fillClientStandShopPick(mid);
+        const first = document.getElementById('csf-shop-pick')?.value;
+        if (first) loadClientStandEditorFromShop(mid, first);
+        else document.getElementById('csf-original-shop').value = '';
+      } else {
+        const blank = await ensureClientStandTemplate(mid);
+        document.getElementById('csf-original-shop').value = '';
+        document.getElementById('csf-shop-name').value = '';
+        document.getElementById('csf-address').value = '';
+        document.getElementById('csf-city').value = '';
+        document.getElementById('csf-comment').value = '';
+        renderClientStandGridFromRow(blank);
+      }
+    });
+  }
+
+  if (csfManager) {
+    csfManager.addEventListener('change', async () => {
+      const mid = csfManager.value;
+      await ensureClientStandTemplate(mid);
+      if (csfMode?.value === 'edit') {
+        fillClientStandShopPick(mid);
+        const first = document.getElementById('csf-shop-pick')?.value;
+        if (first) loadClientStandEditorFromShop(mid, first);
+      } else {
+        document.getElementById('csf-original-shop').value = '';
+        document.getElementById('csf-shop-name').value = '';
+        document.getElementById('csf-address').value = '';
+        document.getElementById('csf-city').value = '';
+        document.getElementById('csf-comment').value = '';
+        const templateRow = (await ensureClientStandTemplate(mid)) || {};
+        renderClientStandGridFromRow(templateRow);
+      }
+      fillClientStandMoveSelects(mid);
+    });
+  }
+
+  if (csfShopPick) {
+    csfShopPick.addEventListener('change', () => {
+      const mid = csfManager?.value || 'andrii';
+      loadClientStandEditorFromShop(mid, csfShopPick.value);
+    });
+  }
+
+  if (csfMoveBtn) csfMoveBtn.addEventListener('click', () => onClientStandMoveClick());
+  if (csfDeleteBtn) csfDeleteBtn.addEventListener('click', () => onClientStandDelete());
 
   applyTabFromUrlOrDefault();
   window.addEventListener('hashchange', () => applyTabFromUrlOrDefault());
