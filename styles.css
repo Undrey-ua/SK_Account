@@ -978,6 +978,15 @@ td.address-cell {
   vertical-align: middle;
 }
 
+.sales-matrix-th-meta {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: #5a6c7d;
+}
+
 .sales-matrix .data-table td {
   white-space: normal !important;
   word-break: break-word;
