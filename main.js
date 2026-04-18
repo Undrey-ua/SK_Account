@@ -167,14 +167,16 @@ function getAllStandPlacements(managerFilter = 'all') {
     const data = cleanStandsMatrixRows(raw);
     if (!data.length) return;
     const headers = Object.keys(data[0] || {});
-    const standTypes = headers.filter(h => !['Назва ТТ', 'Адреса', 'Місто', 'Коментар'].includes(h));
+    const standHeaders = headers.filter(h => !['Назва ТТ', 'Адреса', 'Місто', 'Коментар'].includes(h));
     data.forEach(row => {
-      const shop = row['Назва ТТ'];
+      const shop = String(row?.['Назва ТТ'] ?? '').trim();
       const address = row['Адреса'] || '';
       const city = row['Місто'] || '';
       if (!shop) return;
-      standTypes.forEach(standType => {
-        const installed = numberOrZero(row[standType]);
+      standHeaders.forEach(standTypeRaw => {
+        const standType = String(standTypeRaw ?? '').trim();
+        if (!standType) return;
+        const installed = numberOrZero(row[standTypeRaw]);
         if (installed > 0) {
           placements.push({
             manager,
@@ -243,7 +245,7 @@ function buildSalesIndexByShopStand(range, managerFilter = 'all') {
   const idx = new Map(); // key: shop||stand => qty
   getSalesInRange(range, managerFilter).forEach(row => {
     const shop = row['Торгова точка'];
-    const stand = row['Стенд'];
+    const stand = normalizeTrademarkFromSaleRow(row);
     if (!shop || !stand) return;
     const key = `${shop}||${stand}`;
     idx.set(key, (idx.get(key) || 0) + numberOrZero(row['Кількість']));
@@ -253,7 +255,15 @@ function buildSalesIndexByShopStand(range, managerFilter = 'all') {
 
 function isBerryAllocBigStand(standValue) {
   const s = String(standValue ?? '').trim().toLowerCase();
-  return s === 'berryalloc (big)' || s === 'berryalloc big' || s.includes('berryalloc') && s.includes('big');
+  // «BIG: Carmelita» тощо з довідника «Стенди» — вже конкретна ТМ, не агрегат BIG
+  if (s.startsWith('big:')) return false;
+  // Матриця Роман/Павло (і частина Києва): окремий стовпець «BIG»
+  if (s === 'big') return true;
+  return (
+    s === 'berryalloc (big)' ||
+    s === 'berryalloc big' ||
+    (s.includes('berryalloc') && s.includes('big'))
+  );
 }
 
 function normalizeTrademarkFromSaleRow(row) {
@@ -263,7 +273,23 @@ function normalizeTrademarkFromSaleRow(row) {
   // Нові записи будемо зберігати як "BerryAlloc: Carmelita/PurLoc40/Novocore"
   if (stand.toLowerCase().startsWith('berryalloc:')) return stand;
 
-  // Старі записи "BerryAlloc (BIG)" — намагаємось визначити з коментаря
+  // Довідник «Стенди» (актуально): BIG: Carmelita / BIG: Pureloc40 / BIG: Novocore Legacy
+  if (/^big\s*:/i.test(stand)) {
+    const rest = stand.replace(/^big\s*:\s*/i, '').trim().toLowerCase();
+    if (rest.includes('carmelita')) return 'BerryAlloc: Carmelita';
+    if (
+      rest.includes('pureloc') ||
+      rest.includes('pur loc') ||
+      rest.includes('pur-loc') ||
+      rest.includes('purloc40')
+    ) {
+      return 'BerryAlloc: PurLoc40';
+    }
+    if (rest.includes('novocore')) return 'BerryAlloc: Novocore';
+    return 'BerryAlloc (BIG) — невизначено';
+  }
+
+  // Старі записи "BerryAlloc (BIG)" або стовпець «BIG» у матриці — з коментаря
   if (isBerryAllocBigStand(stand)) {
     const comment = String(row?.['Коментар'] ?? '').toLowerCase();
     if (comment.includes('carmelita')) return 'BerryAlloc: Carmelita';
@@ -274,6 +300,233 @@ function normalizeTrademarkFromSaleRow(row) {
 
   // Для всіх інших: стенд == торгова марка
   return stand;
+}
+
+/** Три лінії всередині одного стенду BIG у матриці обліку (не BerryAlloc: Smartline тощо). */
+function isBerryAllocBigProductLineNormalized(tm) {
+  const t = String(tm ?? '').trim();
+  return (
+    t === 'BerryAlloc: Carmelita' ||
+    t === 'BerryAlloc: PurLoc40' ||
+    t === 'BerryAlloc: Novocore' ||
+    t === 'BerryAlloc (BIG) — невизначено'
+  );
+}
+
+/** Колонка матриці продажів: одна «BIG» замість трьох підмарок. */
+function salesMatrixColumnKeyFromNormalizedTrademark(normalizedTm) {
+  return isBerryAllocBigProductLineNormalized(normalizedTm) ? 'BIG' : normalizedTm;
+}
+
+/** Однаковий ключ для зіставлення назв ТТ між «Продажами» і матрицею обліку. */
+function normalizeComparableShopKey(shop) {
+  return String(shop ?? '')
+    .normalize('NFC')
+    .replace(/[\u2019\u2018`]/g, "'")
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase();
+}
+
+/** «IVC: Solida» vs «Solida», «IVC: Divino» vs «Divino» тощо — без хибних збігів по префіксу. */
+function standTokensComparableForMatrix(a, b) {
+  const norm = s =>
+    String(s ?? '')
+      .normalize('NFC')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  const x = norm(a);
+  const y = norm(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const tail = s => {
+    const i = s.lastIndexOf(':');
+    return i < 0 ? s : s.slice(i + 1).trim();
+  };
+  const tx = tail(x);
+  const ty = tail(y);
+  if (tx === y || x === ty || ty === x || y === tx) return true;
+  if (tx && ty && tx === ty) return true;
+  return false;
+}
+
+function matrixStandKeyMatchesNormalizedTrademark(matrixStand, normalizedTm) {
+  const ms = String(matrixStand ?? '').trim();
+  const nt = String(normalizedTm ?? '').trim();
+  if (!ms || !nt) return false;
+  if (ms === nt) return true;
+  if (ms.toLowerCase() === nt.toLowerCase()) return true;
+  if (isBerryAllocBigStand(ms)) {
+    return isBerryAllocBigProductLineNormalized(nt);
+  }
+  if (standTokensComparableForMatrix(ms, nt)) return true;
+  return false;
+}
+
+function getSalesQtyByShopAndNormalizedTm(salesRows) {
+  const m = new Map();
+  salesRows.forEach(row => {
+    const shop = String(row?.['Торгова точка'] ?? '').trim();
+    const tmn = normalizeTrademarkFromSaleRow(row);
+    if (!shop || !tmn) return;
+    if (!m.has(shop)) m.set(shop, new Map());
+    const inner = m.get(shop);
+    inner.set(tmn, (inner.get(tmn) || 0) + numberOrZero(row['Кількість']));
+  });
+  return m;
+}
+
+function getSalesInnerMapByShopFuzzy(qtyByShop, shopRaw) {
+  const raw = String(shopRaw ?? '').trim().normalize('NFC');
+  if (qtyByShop.has(raw)) return qtyByShop.get(raw);
+  const norm = normalizeComparableShopKey(raw);
+  for (const [k, v] of qtyByShop) {
+    if (normalizeComparableShopKey(k) === norm) return v;
+  }
+  return undefined;
+}
+
+function getSaleQtySumForShopStandColumn(qtyByShop, shop, col) {
+  const inner = getSalesInnerMapByShopFuzzy(qtyByShop, shop);
+  if (!inner) return 0;
+  const colStr = String(col ?? '').trim();
+  if (inner.has(colStr)) return numberOrZero(inner.get(colStr));
+  let sum = 0;
+  for (const [tm, q] of inner) {
+    if (
+      matrixStandKeyMatchesNormalizedTrademark(tm, colStr) ||
+      matrixStandKeyMatchesNormalizedTrademark(colStr, tm)
+    ) {
+      sum += numberOrZero(q);
+    }
+  }
+  return sum;
+}
+
+function resolvePrimaryBerryColumnForShop(shop, qtyByShop, stands) {
+  const inner = getSalesInnerMapByShopFuzzy(qtyByShop, shop);
+  const candidates = [];
+  if (inner) {
+    for (const [tm, q] of inner) {
+      if (!stands.includes(tm)) continue;
+      if (isBerryAllocBigProductLineNormalized(tm)) candidates.push({ tm, q });
+    }
+  }
+  if (candidates.length) {
+    candidates.sort((a, b) => b.q - a.q || a.tm.localeCompare(b.tm, 'uk'));
+    return candidates[0].tm;
+  }
+  const und = 'BerryAlloc (BIG) — невизначено';
+  if (stands.includes(und)) return und;
+  return null;
+}
+
+function placementCountsTowardColumn(p, col, qtyByShop, stands) {
+  const colStr = String(col ?? '').trim();
+  if (colStr === 'BIG' && isBerryAllocBigStand(p.stand)) return true;
+  if (!matrixStandKeyMatchesNormalizedTrademark(p.stand, col)) return false;
+  if (isBerryAllocBigStand(p.stand)) {
+    const primary = resolvePrimaryBerryColumnForShop(p.shop, qtyByShop, stands);
+    return primary !== null && primary === col;
+  }
+  return true;
+}
+
+function bigLineSalesQtyForShop(shop, qtyByShop) {
+  const inner = getSalesInnerMapByShopFuzzy(qtyByShop, shop);
+  if (!inner) return 0;
+  let sum = 0;
+  for (const [tm, q] of inner) {
+    if (isBerryAllocBigProductLineNormalized(tm)) sum += numberOrZero(q);
+  }
+  return sum;
+}
+
+function computeStandTotalsForMatrix(managerFilter, stands, salesRows) {
+  const placements = getAllStandPlacements(managerFilter);
+  const qtyByShop = getSalesQtyByShopAndNormalizedTm(salesRows);
+  const stats = new Map();
+  stands.forEach(col => stats.set(col, { totalUnits: 0, workedUnits: 0 }));
+  placements.forEach(p => {
+    stands.forEach(col => {
+      const colStr = String(col ?? '').trim();
+      if (colStr === 'BIG') {
+        if (!isBerryAllocBigStand(p.stand)) return;
+        const inst = numberOrZero(p.installed);
+        stats.get(col).totalUnits += inst;
+        if (bigLineSalesQtyForShop(p.shop, qtyByShop) > 0) stats.get(col).workedUnits += inst;
+        return;
+      }
+      if (!placementCountsTowardColumn(p, col, qtyByShop, stands)) return;
+      const inst = numberOrZero(p.installed);
+      stats.get(col).totalUnits += inst;
+      const q = getSaleQtySumForShopStandColumn(qtyByShop, p.shop, col);
+      if (q > 0) stats.get(col).workedUnits += inst;
+    });
+  });
+  return stats;
+}
+
+function formatStandHeaderMeta(stand, standStats) {
+  const s = standStats.get(stand) || { totalUnits: 0, workedUnits: 0 };
+  const { totalUnits, workedUnits } = s;
+  if (totalUnits > 0) {
+    const pct = Math.round((workedUnits / totalUnits) * 1000) / 10;
+    return `${totalUnits.toFixed(0)} ст. · ${pct}% спрацювало`;
+  }
+  return 'немає в обліку стендів';
+}
+
+function buildSalesMatrixHtmlFromRows(salesRows, titleText, managerFilter = 'all') {
+  const matrix = {};
+  const standsSet = new Set();
+  const shopsSet = new Set();
+  salesRows.forEach(row => {
+    const shop = String(row?.['Торгова точка'] ?? '').trim();
+    const standNorm = normalizeTrademarkFromSaleRow(row);
+    if (!shop || !standNorm) return;
+    const standCol = salesMatrixColumnKeyFromNormalizedTrademark(standNorm);
+    shopsSet.add(shop);
+    standsSet.add(standCol);
+    if (!matrix[shop]) matrix[shop] = {};
+    matrix[shop][standCol] = (matrix[shop][standCol] || 0) + numberOrZero(row['Кількість']);
+  });
+  const shops = [...shopsSet].sort((a, b) => a.localeCompare(b, 'uk'));
+  const stands = [...standsSet].sort((a, b) => a.localeCompare(b, 'uk'));
+  const standStats = computeStandTotalsForMatrix(managerFilter, stands, salesRows);
+  const title = titleText
+    ? `<p style="margin: 10px 0 0 0; font-weight: 700; color:#2c3e50;">${escapeHtml(titleText)}</p>`
+    : '';
+  if (!shops.length) {
+    return `${title}<p style="color:#777; margin-top: 8px;">Немає даних</p>`;
+  }
+  let html = '<table class="data-table"><thead><tr><th>Торгова точка</th>';
+  stands.forEach(stand => {
+    const meta = escapeHtml(formatStandHeaderMeta(stand, standStats));
+    html += `<th>${escapeHtml(stand)}<br><span class="sales-matrix-th-meta">${meta}</span></th>`;
+  });
+  html += '</tr></thead><tbody>';
+  shops.forEach(shop => {
+    html += `<tr><td>${escapeHtml(shop)}</td>`;
+    stands.forEach(stand => {
+      const v = matrix[shop][stand];
+      html += `<td>${v ? numberOrZero(v).toFixed(3) : ''}</td>`;
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  return `${title}<div class="table-scroll sales-matrix">${html}</div>`;
+}
+
+function renderAnalyticsSalesMatrix() {
+  const el = document.getElementById('analytics-sales-matrix');
+  if (!el) return;
+  const managerFilter = getSelectedAnalyticsManagerId();
+  const range = getSalesReportRangeFromUI();
+  const sales = getSalesInRange(range, managerFilter);
+  const title = `Продажі (матриця) — ${formatRangeLabel(range)} (${managerFilter === 'all' ? 'всі' : managerIdToName(managerFilter)})`;
+  el.innerHTML = buildSalesMatrixHtmlFromRows(sales, title, managerFilter);
 }
 
 function normalizeRawSaleRow(row) {
@@ -441,16 +694,15 @@ async function submitAddSaleForm(event) {
       // Дамо Apps Script трохи часу записати рядок
       await new Promise(r => setTimeout(r, 800));
       await loadRawSales();
-      // Оновити відображення для поточного менеджера
       const activeTab = document.querySelector('.tab-content.active');
       if (activeTab) {
         const managerId = activeTab.id;
         if (['andrii', 'roman', 'pavlo'].includes(managerId)) {
           renderSalesTableForManager(managerId);
-          renderSalesMatrixForManager(managerId);
           updateManagerStats(managerId);
         }
       }
+      renderAllNewAnalyticsBlocks();
       showNotification('Запит на додавання продажу відправлено. Зачекайте трохи ;).', 'success');
   } catch (error) {
     console.error('Помилка при додаванні продажу:', error);
@@ -959,56 +1211,6 @@ async function loadMonthlyPlans() {
   console.log('rawMonthlyPlansData:', rawMonthlyPlansData);
 }
 
-function buildSalesMatrix(manager, month, year) {
-  const managerMap = { andrii: 'Андрій', roman: 'Роман', pavlo: 'Павло' };
-  const filtered = rawSalesData.filter(row => {
-    if (!row['Дата'] || !row['Менеджер'] || !row['Торгова точка'] || !row['Стенд']) return false;
-    let d = new Date(row['Дата']);
-    if (isNaN(d)) return false; // пропустити некоректні дати
-    return (
-      d.getUTCMonth() + 1 === month &&
-      d.getUTCFullYear() === year &&
-      row['Менеджер'] === managerMap[manager]
-    );
-  });
-
-  const shops = [...new Set(filtered.map(s => s['Торгова точка']))];
-  const stands = [...new Set(filtered.map(s => s['Стенд']))];
-
-  let matrix = {};
-  shops.forEach(shop => {
-    matrix[shop] = {};
-    stands.forEach(stand => {
-      matrix[shop][stand] = 0;
-    });
-  });
-
-  filtered.forEach(row => {
-    matrix[row['Торгова точка']][row['Стенд']] += Number(row['Кількість']) || 0;
-  });
-
-  let html = '<table class="data-table"><thead><tr><th>Торгова точка</th>';
-  stands.forEach(stand => html += `<th>${stand}</th>`);
-  html += '</tr></thead><tbody>';
-  shops.forEach(shop => {
-    html += `<tr><td>${shop}</td>`;
-    stands.forEach(stand => {
-      html += `<td>${matrix[shop][stand] ? matrix[shop][stand].toFixed(3) : ''}</td>`;
-    });
-    html += '</tr>';
-  });
-  html += '</tbody></table>';
-  return `<div class="table-scroll sales-matrix">${html}</div>`;
-}
-
-function renderSalesMatrixForManager(manager) {
-  const monthSel = document.querySelector(`.month-select[data-manager="${manager}"]`);
-  const yearSel = document.querySelector(`.year-select[data-manager="${manager}"]`);
-  const month = monthSel ? Number(monthSel.value) : (new Date().getMonth() + 1);
-  const year = yearSel ? Number(yearSel.value) : (new Date().getFullYear());
-  document.getElementById(`${manager}-sales-matrix`).innerHTML = buildSalesMatrix(manager, month, year);
-}
-
 function setActiveTabButton(tabName) {
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   const btn = document.querySelector(`.tab-btn[data-tab="${CSS.escape(tabName)}"]`);
@@ -1039,7 +1241,10 @@ function showTab(tabName, options = {}) {
   if (tabName === 'andrii') updateManagerStats('andrii');
   if (tabName === 'roman') updateManagerStats('roman');
   if (tabName === 'pavlo') updateManagerStats('pavlo');
-  if (tabName === 'analytics') renderAnalyticsTable();
+  if (tabName === 'analytics') {
+    renderAnalyticsTable();
+    renderAllNewAnalyticsBlocks();
+  }
   if (tabName === 'reserves') showReservesTab();
 };
 
@@ -1612,6 +1817,8 @@ function renderSalesReports() {
     { title: `По стендам (торговим маркам) — ${formatRangeLabel(range)} (${managerFilter === 'all' ? 'всі' : managerIdToName(managerFilter)})` }
   );
 
+  renderAnalyticsSalesMatrix();
+
   buildSimpleTable(
     'sales-report-by-city',
     [
@@ -1963,27 +2170,10 @@ async function showReservesTab() {
 
 document.addEventListener('DOMContentLoaded', async function() {
   await renderManagerTabs();
-  ['andrii', 'roman', 'pavlo'].forEach(manager => {
-    const monthSel = document.querySelector(`.month-select[data-manager="${manager}"]`);
-    const yearSel = document.querySelector(`.year-select[data-manager="${manager}"]`);
-    if (monthSel && yearSel) {
-      monthSel.addEventListener('change', () => {
-        renderSalesMatrixForManager(manager);
-        updateManagerStats(manager);
-      });
-      yearSel.addEventListener('change', () => {
-        renderSalesMatrixForManager(manager);
-        updateManagerStats(manager);
-      });
-    }
-  });
 
   (async function initSalesMatrices() {
     await loadRawSales();
     await loadMonthlyPlans();
-    renderSalesMatrixForManager('andrii');
-    renderSalesMatrixForManager('roman');
-    renderSalesMatrixForManager('pavlo');
     ['andrii', 'roman', 'pavlo'].forEach(manager => {
       renderSalesTableForManager(manager);
       updateManagerStats(manager); // <-- це є!
@@ -1997,12 +2187,10 @@ document.addEventListener('DOMContentLoaded', async function() {
   ['andrii', 'roman', 'pavlo'].forEach(manager => {
     document.querySelector(`.month-select[data-manager="${manager}"]`).addEventListener('change', () => {
       renderSalesTableForManager(manager);
-      renderSalesMatrixForManager(manager);
       updateManagerStats(manager);
     });
     document.querySelector(`.year-select[data-manager="${manager}"]`).addEventListener('change', () => {
       renderSalesTableForManager(manager);
-      renderSalesMatrixForManager(manager);
       updateManagerStats(manager);
     });
   });
