@@ -987,6 +987,80 @@ td.address-cell {
   color: #5a6c7d;
 }
 
+.manager-conversions {
+  margin: 10px 0 22px 0;
+}
+
+.conversion-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .conversion-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.conversion-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(17, 24, 39, 0.06);
+  padding: 14px 14px 12px 14px;
+}
+
+.conversion-title {
+  font-weight: 800;
+  color: #111827;
+  font-size: 13px;
+  letter-spacing: 0.2px;
+}
+
+.conversion-numbers {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.conversion-main {
+  font-size: 22px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.conversion-sub {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.conversion-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: #eef2ff;
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.conversion-bar > div {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #2563eb 0%, #7c3aed 100%);
+  width: 0%;
+  transition: width 280ms ease;
+}
+
+.conversion-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
 .sales-matrix .data-table td {
   white-space: normal !important;
   word-break: break-word;
