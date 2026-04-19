@@ -3,7 +3,7 @@ let rawSalesData = [];
 let rawMonthlyPlansData = [];
 
 // === Apps Script endpoint (читання/запис) ===
-const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbwXd7RfsKj_0K9GRixoU0tSjo_23BtaCD048-epyzjLMG7hJ4N5ZtYFAJcfk0XfZ4rA/exec';
+const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbxXOu6h3KboPxrCOBFzcKuLDt8DYO34IRBAOeQrZQ5hMm0k4wX_u9ikrjr5MYQDLkNV/exec';
 const MONTHLY_PLAN_SHEET_NAME = 'План продажів';
 
 // === Аналітика: утиліти дат/періодів ===
@@ -1411,6 +1411,83 @@ function getManagerSalesInMonth(managerId, month, year) {
   return getSalesInRange(range, managerId);
 }
 
+async function loadStandChangeLog() {
+  const data = await fetchSheet('Лог змін стендів');
+  window.standsChangeLog = Array.isArray(data) ? data : [];
+  return window.standsChangeLog;
+}
+
+function parseChangeLogTimestampMs(v) {
+  const d = new Date(String(v ?? '').trim());
+  const t = d.getTime();
+  return Number.isFinite(t) ? t : NaN;
+}
+
+function buildCurrentStandsStateFromMatrix(managerId) {
+  const raw = window.standsMatrixData?.[managerId] || [];
+  const data = cleanStandsMatrixRows(raw);
+  if (!data.length) return new Map();
+  const headers = Object.keys(data[0] || {});
+  const standKeys = headers.filter(h => !['Назва ТТ', 'Адреса', 'Місто', 'Коментар'].includes(h));
+  const state = new Map(); // shopKey -> Map(stand -> qty)
+  data.forEach(row => {
+    const shop = String(row?.['Назва ТТ'] ?? '').trim();
+    if (!shop) return;
+    const shopKey = normalizeComparableShopKey(shop);
+    if (!shopKey) return;
+    if (!state.has(shopKey)) state.set(shopKey, new Map());
+    const m = state.get(shopKey);
+    standKeys.forEach(k => {
+      const stand = String(k ?? '').trim();
+      if (!stand) return;
+      const n = numberOrZero(row[k]);
+      if (n > 0) m.set(stand, n);
+    });
+  });
+  return state;
+}
+
+function stateApplyDelta(state, shopKey, stand, delta) {
+  if (!shopKey || !stand) return;
+  if (!state.has(shopKey)) state.set(shopKey, new Map());
+  const m = state.get(shopKey);
+  const cur = numberOrZero(m.get(stand));
+  const next = cur + numberOrZero(delta);
+  if (next > 0) m.set(stand, next);
+  else m.delete(stand);
+  if (m.size === 0) state.delete(shopKey);
+}
+
+function buildStandsStateAsOfEndMonth(managerId, month, year) {
+  // Беремо поточний стан матриці і "відкочуємо" зміни, які сталися після кінця місяця.
+  const cutoff = getRangeForMonth(month, year).end.getTime(); // end of month [start,end)
+  const state = buildCurrentStandsStateFromMatrix(managerId);
+  const log = Array.isArray(window.standsChangeLog) ? window.standsChangeLog : [];
+  log.forEach(ev => {
+    const mid = String(ev?.ManagerId ?? '').trim();
+    if (mid && mid !== managerId) return;
+    const ts = parseChangeLogTimestampMs(ev?.Timestamp);
+    if (!Number.isFinite(ts)) return;
+    if (ts <= cutoff) return; // зміни ДО або в межах місяця лишаємо
+    const shopKey = normalizeComparableShopKey(ev?.Shop);
+    const stand = String(ev?.Stand ?? '').trim();
+    const delta = numberOrZero(ev?.Delta);
+    // reverse apply
+    stateApplyDelta(state, shopKey, stand, -delta);
+  });
+  return state;
+}
+
+function placementsFromState(state) {
+  const placements = [];
+  for (const [shopKey, m] of state.entries()) {
+    for (const stand of m.keys()) {
+      placements.push({ shopKey, stand });
+    }
+  }
+  return placements;
+}
+
 function renderManagerConversions(managerId) {
   const el = document.getElementById(`${managerId}-conversions`);
   if (!el) return;
@@ -1418,18 +1495,16 @@ function renderManagerConversions(managerId) {
   const { month, year } = getSelectedMonthYearForManager(managerId);
   const sales = getManagerSalesInMonth(managerId, month, year);
 
-  const rawMatrix = window.standsMatrixData?.[managerId] || [];
-  const matrixRows = cleanStandsMatrixRows(rawMatrix);
-  const totalTT = new Set(matrixRows.map(r => String(r?.['Назва ТТ'] ?? '').trim()).filter(Boolean)).size;
+  const state = buildStandsStateAsOfEndMonth(managerId, month, year);
+  const totalTT = state.size;
 
   const workedTT = new Set(
     sales
-      .map(r => String(r?.['Торгова точка'] ?? '').trim())
+      .map(r => normalizeComparableShopKey(r?.['Торгова точка']))
       .filter(Boolean)
   ).size;
 
-  const placements = getAllStandPlacements(managerId);
-  // Конверсія стендів рахується як кількість стендів (розміщень ТТ×стенд), а не сума одиниць installed.
+  const placements = placementsFromState(state);
   const totalStands = placements.length;
 
   const salesByShop = new Map(); // shopKey -> [saleRow...]
@@ -1441,7 +1516,7 @@ function renderManagerConversions(managerId) {
   });
 
   const placementWorked = (p) => {
-    const shopKey = normalizeComparableShopKey(p.shop);
+    const shopKey = String(p?.shopKey ?? '').trim();
     if (!shopKey) return false;
     const rows = salesByShop.get(shopKey) || [];
     if (!rows.length) return false;
@@ -1452,10 +1527,7 @@ function renderManagerConversions(managerId) {
     // Інші: продаж має відповідати цьому стенду з матриці обліку
     return rows.some(r => {
       const tm = normalizeTrademarkFromSaleRow(r);
-      return (
-        matrixStandKeyMatchesNormalizedTrademark(p.stand, tm) ||
-        matrixStandKeyMatchesNormalizedTrademark(tm, p.stand)
-      );
+      return matrixStandKeyMatchesNormalizedTrademark(p.stand, tm) || matrixStandKeyMatchesNormalizedTrademark(tm, p.stand);
     });
   };
 
@@ -2292,6 +2364,8 @@ document.addEventListener('DOMContentLoaded', async function() {
   await Promise.all(managers.map(async manager => {
     window.standsMatrixData[manager] = await loadStandsMatrix(manager);
   }));
+
+  await loadStandChangeLog();
 
   managers.forEach(m => renderManagerConversions(m));
 
