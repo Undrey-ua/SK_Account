@@ -1336,6 +1336,7 @@ function renderSalesTableForManager(manager) {
 
   console.log('filtered:', filtered);
   document.querySelector(`#${manager}-table tbody`).innerHTML = buildSalesTable(filtered);
+  renderManagerConversions(manager);
 }
 
 function fillMonthYearSelects() {
@@ -1394,6 +1395,7 @@ function updateManagerStats(manager) {
 
   // Синхронізуємо "Цілі на поточний місяць" з обраним періодом і фактом продажів
   renderMonthlyGoalsForManager(manager);
+  renderManagerConversions(manager);
 }
 
 function getSelectedMonthYearForManager(manager) {
@@ -1402,6 +1404,91 @@ function getSelectedMonthYearForManager(manager) {
   const month = monthSel ? Number(monthSel.value) : (new Date().getMonth() + 1);
   const year = yearSel ? Number(yearSel.value) : (new Date().getFullYear());
   return { month, year };
+}
+
+function getManagerSalesInMonth(managerId, month, year) {
+  const range = getRangeForMonth(month, year);
+  return getSalesInRange(range, managerId);
+}
+
+function renderManagerConversions(managerId) {
+  const el = document.getElementById(`${managerId}-conversions`);
+  if (!el) return;
+
+  const { month, year } = getSelectedMonthYearForManager(managerId);
+  const sales = getManagerSalesInMonth(managerId, month, year);
+
+  const rawMatrix = window.standsMatrixData?.[managerId] || [];
+  const matrixRows = cleanStandsMatrixRows(rawMatrix);
+  const totalTT = new Set(matrixRows.map(r => String(r?.['Назва ТТ'] ?? '').trim()).filter(Boolean)).size;
+
+  const workedTT = new Set(
+    sales
+      .map(r => String(r?.['Торгова точка'] ?? '').trim())
+      .filter(Boolean)
+  ).size;
+
+  const placements = getAllStandPlacements(managerId);
+  // Конверсія стендів рахується як кількість стендів (розміщень ТТ×стенд), а не сума одиниць installed.
+  const totalStands = placements.length;
+
+  const salesByShop = new Map(); // shopKey -> [saleRow...]
+  sales.forEach(r => {
+    const k = normalizeComparableShopKey(r?.['Торгова точка']);
+    if (!k) return;
+    if (!salesByShop.has(k)) salesByShop.set(k, []);
+    salesByShop.get(k).push(r);
+  });
+
+  const placementWorked = (p) => {
+    const shopKey = normalizeComparableShopKey(p.shop);
+    if (!shopKey) return false;
+    const rows = salesByShop.get(shopKey) || [];
+    if (!rows.length) return false;
+    // BIG: якщо будь-яка з ліній Carmelita/PurLoc40/Novocore/невизначено має продаж
+    if (isBerryAllocBigStand(p.stand)) {
+      return rows.some(r => isBerryAllocBigProductLineNormalized(normalizeTrademarkFromSaleRow(r)));
+    }
+    // Інші: продаж має відповідати цьому стенду з матриці обліку
+    return rows.some(r => {
+      const tm = normalizeTrademarkFromSaleRow(r);
+      return (
+        matrixStandKeyMatchesNormalizedTrademark(p.stand, tm) ||
+        matrixStandKeyMatchesNormalizedTrademark(tm, p.stand)
+      );
+    });
+  };
+
+  const workedStands = placements.reduce((sum, p) => (placementWorked(p) ? sum + 1 : sum), 0);
+
+  const pct = (num, den) => (den > 0 ? Math.round((num / den) * 1000) / 10 : 0);
+  const pctTT = pct(workedTT, totalTT);
+  const pctStands = pct(workedStands, totalStands);
+
+  const bar = v => `style="width:${Math.max(0, Math.min(100, v)).toFixed(1)}%"`;
+
+  el.innerHTML = `
+    <div class="conversion-grid">
+      <div class="conversion-card">
+        <div class="conversion-title">Конверсія ТТ за місяць</div>
+        <div class="conversion-numbers">
+          <div class="conversion-main">${workedTT} / ${totalTT || 0}</div>
+          <div class="conversion-sub">${pctTT.toFixed(1)}%</div>
+        </div>
+        <div class="conversion-bar"><div ${bar(pctTT)}></div></div>
+        <div class="conversion-hint">Спрацювало (є продажі) / Всього торгових точок</div>
+      </div>
+      <div class="conversion-card">
+        <div class="conversion-title">Конверсія стендів за місяць</div>
+        <div class="conversion-numbers">
+          <div class="conversion-main">${workedStands.toFixed(0)} / ${totalStands.toFixed(0)}</div>
+          <div class="conversion-sub">${pctStands.toFixed(1)}%</div>
+        </div>
+        <div class="conversion-bar"><div ${bar(pctStands)}></div></div>
+        <div class="conversion-hint">Спрацювало (стенд мав продажі) / Всього стендів у матриці</div>
+      </div>
+    </div>
+  `;
 }
 
 function getMonthlySalesTotalSqm(manager, month, year) {
@@ -2205,6 +2292,8 @@ document.addEventListener('DOMContentLoaded', async function() {
   await Promise.all(managers.map(async manager => {
     window.standsMatrixData[manager] = await loadStandsMatrix(manager);
   }));
+
+  managers.forEach(m => renderManagerConversions(m));
 
   renderAnalyticsTable();
   renderAllNewAnalyticsBlocks();
