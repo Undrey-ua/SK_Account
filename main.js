@@ -318,6 +318,25 @@ function salesMatrixColumnKeyFromNormalizedTrademark(normalizedTm) {
   return isBerryAllocBigProductLineNormalized(normalizedTm) ? 'BIG' : normalizedTm;
 }
 
+/**
+ * Чи один і той самий логічний стовпчик матриці (різні написи в продажах vs заголовок колонки).
+ * Без цього конверсія падає в 0%, якщо в одному рядку «IVC: Solida», в іншому — «Solida».
+ */
+function matrixSalesColumnKeysMatch(saleColKey, headerColKey) {
+  const a = String(saleColKey ?? '').trim();
+  const b = String(headerColKey ?? '').trim();
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (a.toLowerCase() === b.toLowerCase()) return true;
+  if (a === 'BIG' && b === 'BIG') return true;
+  if (a === 'BIG' || b === 'BIG') {
+    const other = a === 'BIG' ? b : a;
+    if (other === 'BIG') return true;
+    return isBerryAllocBigProductLineNormalized(other);
+  }
+  return standTokensComparableForMatrix(a, b);
+}
+
 /** Однаковий ключ для зіставлення назв ТТ між «Продажами» і матрицею обліку. */
 function normalizeComparableShopKey(shop) {
   return String(shop ?? '')
@@ -364,105 +383,65 @@ function matrixStandKeyMatchesNormalizedTrademark(matrixStand, normalizedTm) {
   return false;
 }
 
-function getSalesQtyByShopAndNormalizedTm(salesRows) {
-  const m = new Map();
-  salesRows.forEach(row => {
-    const shop = String(row?.['Торгова точка'] ?? '').trim();
-    const tmn = normalizeTrademarkFromSaleRow(row);
-    if (!shop || !tmn) return;
-    if (!m.has(shop)) m.set(shop, new Map());
-    const inner = m.get(shop);
-    inner.set(tmn, (inner.get(tmn) || 0) + numberOrZero(row['Кількість']));
+/** Розміщення з матриці обліку відповідає колонці матриці продажів (ті самі правила, що «Стенди у менеджерів»). */
+function placementStandMatchesSalesMatrixColumn(matrixStand, salesColumnKey) {
+  const ms = String(matrixStand ?? '').trim();
+  const c = String(salesColumnKey ?? '').trim();
+  if (!ms || !c) return false;
+  return (
+    matrixStandKeyMatchesNormalizedTrademark(ms, c) ||
+    matrixStandKeyMatchesNormalizedTrademark(c, ms)
+  );
+}
+
+function matrixColumnKeyFromSaleRow(row) {
+  return salesMatrixColumnKeyFromNormalizedTrademark(normalizeTrademarkFromSaleRow(row));
+}
+
+/** Чи є в цієї ТТ за період хоча б один продаж у цьому стовпчику матриці (як у клітинках таблиці). */
+function shopHasSaleForMatrixColumn(shop, salesRows, colStr) {
+  const shopKey = normalizeComparableShopKey(shop);
+  const c = String(colStr ?? '').trim();
+  return salesRows.some(row => {
+    if (numberOrZero(row['Кількість']) <= 0) return false;
+    if (normalizeComparableShopKey(row['Торгова точка']) !== shopKey) return false;
+    return matrixSalesColumnKeysMatch(matrixColumnKeyFromSaleRow(row), c);
   });
-  return m;
 }
 
-function getSalesInnerMapByShopFuzzy(qtyByShop, shopRaw) {
-  const raw = String(shopRaw ?? '').trim().normalize('NFC');
-  if (qtyByShop.has(raw)) return qtyByShop.get(raw);
-  const norm = normalizeComparableShopKey(raw);
-  for (const [k, v] of qtyByShop) {
-    if (normalizeComparableShopKey(k) === norm) return v;
-  }
-  return undefined;
+function shopHasBigLineSale(shop, salesRows) {
+  const shopKey = normalizeComparableShopKey(shop);
+  return salesRows.some(row => {
+    if (numberOrZero(row['Кількість']) <= 0) return false;
+    if (normalizeComparableShopKey(row['Торгова точка']) !== shopKey) return false;
+    const tm = normalizeTrademarkFromSaleRow(row);
+    return isBerryAllocBigProductLineNormalized(tm);
+  });
 }
 
-function getSaleQtySumForShopStandColumn(qtyByShop, shop, col) {
-  const inner = getSalesInnerMapByShopFuzzy(qtyByShop, shop);
-  if (!inner) return 0;
-  const colStr = String(col ?? '').trim();
-  if (inner.has(colStr)) return numberOrZero(inner.get(colStr));
-  let sum = 0;
-  for (const [tm, q] of inner) {
-    if (
-      matrixStandKeyMatchesNormalizedTrademark(tm, colStr) ||
-      matrixStandKeyMatchesNormalizedTrademark(colStr, tm)
-    ) {
-      sum += numberOrZero(q);
-    }
-  }
-  return sum;
-}
-
-function resolvePrimaryBerryColumnForShop(shop, qtyByShop, stands) {
-  const inner = getSalesInnerMapByShopFuzzy(qtyByShop, shop);
-  const candidates = [];
-  if (inner) {
-    for (const [tm, q] of inner) {
-      if (!stands.includes(tm)) continue;
-      if (isBerryAllocBigProductLineNormalized(tm)) candidates.push({ tm, q });
-    }
-  }
-  if (candidates.length) {
-    candidates.sort((a, b) => b.q - a.q || a.tm.localeCompare(b.tm, 'uk'));
-    return candidates[0].tm;
-  }
-  const und = 'BerryAlloc (BIG) — невизначено';
-  if (stands.includes(und)) return und;
-  return null;
-}
-
-function placementCountsTowardColumn(p, col, qtyByShop, stands) {
-  const colStr = String(col ?? '').trim();
-  if (colStr === 'BIG' && isBerryAllocBigStand(p.stand)) return true;
-  if (!matrixStandKeyMatchesNormalizedTrademark(p.stand, col)) return false;
-  if (isBerryAllocBigStand(p.stand)) {
-    const primary = resolvePrimaryBerryColumnForShop(p.shop, qtyByShop, stands);
-    return primary !== null && primary === col;
-  }
-  return true;
-}
-
-function bigLineSalesQtyForShop(shop, qtyByShop) {
-  const inner = getSalesInnerMapByShopFuzzy(qtyByShop, shop);
-  if (!inner) return 0;
-  let sum = 0;
-  for (const [tm, q] of inner) {
-    if (isBerryAllocBigProductLineNormalized(tm)) sum += numberOrZero(q);
-  }
-  return sum;
-}
-
+/**
+ * По кожній ТМ: сума стендів з матриці обліку / сума тих, де за період був продаж по цій марці (одиниці обліку).
+ */
 function computeStandTotalsForMatrix(managerFilter, stands, salesRows) {
   const placements = getAllStandPlacements(managerFilter);
-  const qtyByShop = getSalesQtyByShopAndNormalizedTm(salesRows);
   const stats = new Map();
   stands.forEach(col => stats.set(col, { totalUnits: 0, workedUnits: 0 }));
-  placements.forEach(p => {
-    stands.forEach(col => {
-      const colStr = String(col ?? '').trim();
+
+  stands.forEach(col => {
+    const colStr = String(col ?? '').trim();
+    placements.forEach(p => {
       if (colStr === 'BIG') {
         if (!isBerryAllocBigStand(p.stand)) return;
-        const inst = numberOrZero(p.installed);
-        stats.get(col).totalUnits += inst;
-        if (bigLineSalesQtyForShop(p.shop, qtyByShop) > 0) stats.get(col).workedUnits += inst;
+      } else if (!placementStandMatchesSalesMatrixColumn(p.stand, colStr)) {
         return;
       }
-      if (!placementCountsTowardColumn(p, col, qtyByShop, stands)) return;
       const inst = numberOrZero(p.installed);
       stats.get(col).totalUnits += inst;
-      const q = getSaleQtySumForShopStandColumn(qtyByShop, p.shop, col);
-      if (q > 0) stats.get(col).workedUnits += inst;
+      const had =
+        colStr === 'BIG'
+          ? shopHasBigLineSale(p.shop, salesRows)
+          : shopHasSaleForMatrixColumn(p.shop, salesRows, colStr);
+      if (had) stats.get(col).workedUnits += inst;
     });
   });
   return stats;
@@ -473,7 +452,7 @@ function formatStandHeaderMeta(stand, standStats) {
   const { totalUnits, workedUnits } = s;
   if (totalUnits > 0) {
     const pct = Math.round((workedUnits / totalUnits) * 1000) / 10;
-    return `${totalUnits.toFixed(0)} ст. · ${pct}% спрацювало`;
+    return `${totalUnits.toFixed(0)} ст. всього · ${workedUnits.toFixed(0)} спрацювало · ${pct}%`;
   }
   return 'немає в обліку стендів';
 }
