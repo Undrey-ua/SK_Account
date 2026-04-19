@@ -302,6 +302,20 @@ function normalizeTrademarkFromSaleRow(row) {
   return stand;
 }
 
+/** Лейбл для звітів: показує BIG-лінійки як "BIG: ..." замість "BerryAlloc: ...". */
+function reportTrademarkLabelFromNormalized(tmNormalized) {
+  const t = String(tmNormalized ?? '').trim();
+  if (t === 'BerryAlloc: Carmelita') return 'BIG: Carmelita';
+  if (t === 'BerryAlloc: PurLoc40') return 'BIG: PurLoc40';
+  if (t === 'BerryAlloc: Novocore') return 'BIG: Novocore';
+  if (t === 'BerryAlloc (BIG) — невизначено') return 'BIG: невизначено';
+  return t;
+}
+
+function reportTrademarkLabelFromSaleRow(row) {
+  return reportTrademarkLabelFromNormalized(normalizeTrademarkFromSaleRow(row));
+}
+
 /** Три лінії всередині одного стенду BIG у матриці обліку (не BerryAlloc: Smartline тощо). */
 function isBerryAllocBigProductLineNormalized(tm) {
   const t = String(tm ?? '').trim();
@@ -1733,7 +1747,7 @@ function renderSalesReports() {
   // По стендам (торгова марка)
   const byStand = new Map();
   sales.forEach(row => {
-    const trademark = normalizeTrademarkFromSaleRow(row);
+    const trademark = reportTrademarkLabelFromSaleRow(row);
     if (!trademark) return;
     byStand.set(trademark, (byStand.get(trademark) || 0) + numberOrZero(row['Кількість']));
   });
@@ -1753,7 +1767,7 @@ function renderSalesReports() {
       'Невідомо';
     byCity.set(city, (byCity.get(city) || 0) + numberOrZero(row['Кількість']));
 
-    const tm = normalizeTrademarkFromSaleRow(row);
+    const tm = reportTrademarkLabelFromSaleRow(row);
     if (tm) {
       if (!cityTrademarkQty.has(city)) cityTrademarkQty.set(city, new Map());
       const m = cityTrademarkQty.get(city);
@@ -1828,7 +1842,7 @@ function renderWorkedStandsCurrentMonth() {
   const grouped = new Map(); // key manager||shop||stand => qty
   sales.forEach(row => {
     const shop = row['Торгова точка'];
-    const stand = normalizeTrademarkFromSaleRow(row);
+    const stand = reportTrademarkLabelFromSaleRow(row);
     const managerName = row['Менеджер'];
     if (!shop || !stand) return;
     const manager = managerNameToId(managerName) || managerName || '';
