@@ -2013,6 +2013,26 @@ function safePct(delta, prev) {
   return (Number(delta) / p) * 100;
 }
 
+function formatSignedNumber(v, digits = 3) {
+  if (v === '') return '';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '';
+  const abs = Math.abs(n).toFixed(digits);
+  if (n > 0) return `+${abs}`;
+  if (n < 0) return `-${abs}`;
+  return (0).toFixed(digits);
+}
+
+function formatSignedPercent(v, digits = 1) {
+  if (v === '') return '';
+  const n = Number(v);
+  if (!Number.isFinite(n)) return '';
+  const abs = Math.abs(n).toFixed(digits);
+  if (n > 0) return `+${abs}%`;
+  if (n < 0) return `-${abs}%`;
+  return `${(0).toFixed(digits)}%`;
+}
+
 function fillComparePeriodSelectors() {
   const now = new Date();
   const months = [
@@ -2072,6 +2092,31 @@ function getCompareRangeFromUI(side) {
   return getRangeForMonth(month, year);
 }
 
+function collectCompareSales(range) {
+  const managerFilter = getSelectedCompareManagerId();
+  const managerIds = normalizeManagerListFromFilter(managerFilter);
+  return managerIds.flatMap(mid => getSalesInRange(range, mid));
+}
+
+function buildCompareAggRows(aMap, bMap, keyName, sortBy = 'a') {
+  const keys = new Set([...aMap.keys(), ...bMap.keys()]);
+  const rows = [...keys].map(k => {
+    const a = numberOrZero(aMap.get(k) || 0);
+    const b = numberOrZero(bMap.get(k) || 0);
+    const delta = a - b;
+    const pct = safePct(delta, b);
+    return { [keyName]: k, a, b, delta, pct: pct == null ? '' : pct };
+  });
+
+  const sorter = (x, y) => {
+    const ax = numberOrZero(x[sortBy]);
+    const ay = numberOrZero(y[sortBy]);
+    if (ay !== ax) return ay - ax;
+    return String(x[keyName]).localeCompare(String(y[keyName]));
+  };
+  return rows.sort(sorter);
+}
+
 function renderComparePeriodTable() {
   const managerFilter = getSelectedCompareManagerId();
   const rangeA = getCompareRangeFromUI('a');
@@ -2110,13 +2155,109 @@ function renderComparePeriodTable() {
     'compare-period-table',
     [
       { key: 'manager', label: 'Менеджер' },
-      { key: 'b', label: `Період B (${formatRangeLabel(rangeB)})`, format: v => numberOrZero(v).toFixed(3) },
-      { key: 'a', label: `Період A (${formatRangeLabel(rangeA)})`, format: v => numberOrZero(v).toFixed(3) },
-      { key: 'delta', label: 'A − B, кв м', format: v => numberOrZero(v).toFixed(3) },
-      { key: 'pct', label: 'Δ, %', format: v => (v === '' ? '' : `${numberOrZero(v).toFixed(1)}%`) }
+      { key: 'b', label: `Період базовий (${formatRangeLabel(rangeB)})`, format: v => numberOrZero(v).toFixed(3) },
+      { key: 'a', label: `Період звіту (${formatRangeLabel(rangeA)})`, format: v => numberOrZero(v).toFixed(3) },
+      { key: 'delta', label: 'A − B, кв м', format: v => formatSignedNumber(v, 3) },
+      { key: 'pct', label: 'Δ, %', format: v => formatSignedPercent(v, 1) }
     ],
     rows,
     { title: `Порівняння продажів: ${formatRangeLabel(rangeA)} vs ${formatRangeLabel(rangeB)}` }
+  );
+
+  // === KPI: shops/stands worked ===
+  const aSalesAll = collectCompareSales(rangeA);
+  const bSalesAll = collectCompareSales(rangeB);
+
+  const aShops = new Set(aSalesAll.map(r => String(r?.['Торгова точка'] ?? '').trim()).filter(Boolean));
+  const bShops = new Set(bSalesAll.map(r => String(r?.['Торгова точка'] ?? '').trim()).filter(Boolean));
+
+  const aStands = new Set(aSalesAll.map(r => String(reportTrademarkLabelFromSaleRow(r) ?? '').trim()).filter(Boolean));
+  const bStands = new Set(bSalesAll.map(r => String(reportTrademarkLabelFromSaleRow(r) ?? '').trim()).filter(Boolean));
+
+  const kpiRows = [
+    {
+      metric: 'Кількість торгових точок, що спрацювали',
+      b: bShops.size,
+      a: aShops.size,
+      delta: aShops.size - bShops.size,
+      pct: safePct(aShops.size - bShops.size, bShops.size) ?? ''
+    },
+    {
+      metric: 'Кількість стендів, що спрацювали',
+      b: bStands.size,
+      a: aStands.size,
+      delta: aStands.size - bStands.size,
+      pct: safePct(aStands.size - bStands.size, bStands.size) ?? ''
+    }
+  ];
+
+  buildSimpleTable(
+    'compare-kpis',
+    [
+      { key: 'metric', label: 'Показник' },
+      { key: 'b', label: `Базовий (${formatRangeLabel(rangeB)})`, format: v => numberOrZero(v).toFixed(0) },
+      { key: 'a', label: `Звіт (${formatRangeLabel(rangeA)})`, format: v => numberOrZero(v).toFixed(0) },
+      { key: 'delta', label: 'Δ', format: v => formatSignedNumber(v, 0) },
+      { key: 'pct', label: 'Δ, %', format: v => formatSignedPercent(v, 1) }
+    ],
+    kpiRows,
+    { title: '' }
+  );
+
+  // === Breakdown: trademarks ===
+  const aByTm = new Map();
+  aSalesAll.forEach(r => {
+    const tm = String(reportTrademarkLabelFromSaleRow(r) ?? '').trim();
+    if (!tm) return;
+    aByTm.set(tm, (aByTm.get(tm) || 0) + numberOrZero(r['Кількість']));
+  });
+  const bByTm = new Map();
+  bSalesAll.forEach(r => {
+    const tm = String(reportTrademarkLabelFromSaleRow(r) ?? '').trim();
+    if (!tm) return;
+    bByTm.set(tm, (bByTm.get(tm) || 0) + numberOrZero(r['Кількість']));
+  });
+  const tmRows = buildCompareAggRows(aByTm, bByTm, 'stand', 'a');
+
+  buildSimpleTable(
+    'compare-by-trademark',
+    [
+      { key: 'stand', label: 'Торгова марка' },
+      { key: 'b', label: `Базовий (${formatRangeLabel(rangeB)})`, format: v => numberOrZero(v).toFixed(3) },
+      { key: 'a', label: `Звіт (${formatRangeLabel(rangeA)})`, format: v => numberOrZero(v).toFixed(3) },
+      { key: 'delta', label: 'Δ, кв м', format: v => formatSignedNumber(v, 3) },
+      { key: 'pct', label: 'Δ, %', format: v => formatSignedPercent(v, 1) }
+    ],
+    tmRows,
+    { title: '' }
+  );
+
+  // === Breakdown: shops ===
+  const aByShop = new Map();
+  aSalesAll.forEach(r => {
+    const shop = String(r?.['Торгова точка'] ?? '').trim();
+    if (!shop) return;
+    aByShop.set(shop, (aByShop.get(shop) || 0) + numberOrZero(r['Кількість']));
+  });
+  const bByShop = new Map();
+  bSalesAll.forEach(r => {
+    const shop = String(r?.['Торгова точка'] ?? '').trim();
+    if (!shop) return;
+    bByShop.set(shop, (bByShop.get(shop) || 0) + numberOrZero(r['Кількість']));
+  });
+  const shopRows = buildCompareAggRows(aByShop, bByShop, 'shop', 'a');
+
+  buildSimpleTable(
+    'compare-by-shop',
+    [
+      { key: 'shop', label: 'Торгова точка' },
+      { key: 'b', label: `Базовий (${formatRangeLabel(rangeB)})`, format: v => numberOrZero(v).toFixed(3) },
+      { key: 'a', label: `Звіт (${formatRangeLabel(rangeA)})`, format: v => numberOrZero(v).toFixed(3) },
+      { key: 'delta', label: 'Δ, кв м', format: v => formatSignedNumber(v, 3) },
+      { key: 'pct', label: 'Δ, %', format: v => formatSignedPercent(v, 1) }
+    ],
+    shopRows,
+    { title: '' }
   );
 }
 
@@ -2578,7 +2719,7 @@ async function renderManagerTabs() {
   // Додаємо інші вкладки (аналітика, плани)
   const analyticsBtn = document.createElement('button');
   analyticsBtn.className = 'tab-btn';
-  analyticsBtn.textContent = 'Порівняльна аналітика';
+  analyticsBtn.textContent = 'Загальна аналітика';
   analyticsBtn.dataset.tab = 'analytics';
   analyticsBtn.onclick = () => showTab('analytics');
   tabsContainer.appendChild(analyticsBtn);
