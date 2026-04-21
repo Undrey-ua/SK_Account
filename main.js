@@ -167,11 +167,12 @@ function getAllStandPlacements(managerFilter = 'all') {
     const data = cleanStandsMatrixRows(raw);
     if (!data.length) return;
     const headers = Object.keys(data[0] || {});
-    const standHeaders = headers.filter(h => !['Назва ТТ', 'Адреса', 'Місто', 'Коментар'].includes(h));
+    const standHeaders = headers.filter(h => !['Назва ТТ', 'Адреса', 'Місто', 'Область', 'Коментар'].includes(h));
     data.forEach(row => {
       const shop = String(row?.['Назва ТТ'] ?? '').trim();
       const address = row['Адреса'] || '';
       const city = row['Місто'] || '';
+      const oblast = row['Область'] || '';
       if (!shop) return;
       standHeaders.forEach(standTypeRaw => {
         const standType = String(standTypeRaw ?? '').trim();
@@ -183,6 +184,7 @@ function getAllStandPlacements(managerFilter = 'all') {
             shop,
             address,
             city,
+            oblast,
             stand: standType,
             installed
           });
@@ -205,6 +207,23 @@ function buildShopCityIndex(managerFilter = 'all') {
       const city = String(row?.['Місто'] ?? '').trim();
       if (!city) return;
       if (!idx.has(shop)) idx.set(shop, city);
+    });
+  });
+  return idx;
+}
+
+function buildShopOblastIndex(managerFilter = 'all') {
+  const managers = normalizeManagerListFromFilter(managerFilter);
+  const idx = new Map(); // shop -> oblast
+  managers.forEach(manager => {
+    const raw = window.standsMatrixData?.[manager] || [];
+    const data = cleanStandsMatrixRows(raw);
+    data.forEach(row => {
+      const shop = String(row?.['Назва ТТ'] ?? '').trim();
+      if (!shop) return;
+      const oblast = String(row?.['Область'] ?? '').trim();
+      if (!oblast) return;
+      if (!idx.has(shop)) idx.set(shop, oblast);
     });
   });
   return idx;
@@ -235,6 +254,26 @@ function getCityForShopFromStandsMatrix(shop, managerId = null) {
       if (s === targetShop) {
         const city = String(row?.['Місто'] ?? '').trim();
         if (city) return city;
+      }
+    }
+  }
+  return '';
+}
+
+function getOblastForShopFromStandsMatrix(shop, managerId = null) {
+  const targetShop = String(shop ?? '').trim();
+  if (!targetShop) return '';
+
+  const managers = managerId ? [managerId] : ['andrii', 'roman', 'pavlo'];
+  for (const m of managers) {
+    const raw = window.standsMatrixData?.[m] || [];
+    const data = cleanStandsMatrixRows(raw);
+    for (const row of data) {
+      const s = String(row?.['Назва ТТ'] ?? '').trim();
+      if (!s) continue;
+      if (s === targetShop) {
+        const oblast = String(row?.['Область'] ?? '').trim();
+        if (oblast) return oblast;
       }
     }
   }
@@ -566,10 +605,12 @@ function openAddSaleForm(managerId = null) {
       if (managerSelect && managerMap[managerId]) {
         managerSelect.value = managerMap[managerId];
       }
-      // Оновити список ТТ для цього менеджера
-      fillShopSelect(document.getElementById('sale-shop-select'), managerId);
+      // Оновити області й список ТТ для цього менеджера
+      fillOblastSelect(document.getElementById('sale-oblast-select'), managerId);
+      fillShopSelect(document.getElementById('sale-shop-select'), managerId, '');
     } else {
-      fillShopSelect(document.getElementById('sale-shop-select'), null);
+      fillOblastSelect(document.getElementById('sale-oblast-select'), null);
+      fillShopSelect(document.getElementById('sale-shop-select'), null, '');
     }
     
     // Заповнити селекти
@@ -636,8 +677,13 @@ async function submitAddSaleForm(event) {
   const shopValue = String(formData.get('shop') ?? '').trim();
   const managerName = String(formData.get('manager') ?? '').trim();
   const managerId = managerNameToId(managerName);
+  const selectedOblast = String(formData.get('oblast') ?? '').trim();
   const cityValue =
     getCityForShopFromStandsMatrix(shopValue, ['andrii', 'roman', 'pavlo'].includes(managerId) ? managerId : null) ||
+    '';
+  const oblastValue =
+    selectedOblast ||
+    getOblastForShopFromStandsMatrix(shopValue, ['andrii', 'roman', 'pavlo'].includes(managerId) ? managerId : null) ||
     '';
 
   const saleData = {
@@ -646,6 +692,7 @@ async function submitAddSaleForm(event) {
     'Кількість': formData.get('quantity'),
     'Дата': formData.get('date'),
     'Місто': cityValue,
+    'Область': oblastValue,
     'Коментар': formData.get('comment'),
     'Менеджер': managerName
   };
@@ -726,7 +773,7 @@ function showNotification(message, type = 'info') {
 //   Для upsert: опційно &standsMatchShop=... (назва ДО зміни; порожньо = новий рядок).
 //   Тіло POST: JSON як text/plain (як у продажах), для upsert — об'єкт рядка матриці;
 //   для delete — {} або той самий рядок; для move — див. postStandsMatrixMove().
-const STANDS_MATRIX_META_KEYS = ['Назва ТТ', 'Адреса', 'Місто', 'Коментар'];
+const STANDS_MATRIX_META_KEYS = ['Назва ТТ', 'Адреса', 'Місто', 'Область', 'Коментар'];
 
 function standsMatrixSheetTitle(managerId) {
   return `Облік стендів(${managerIdToName(managerId)})`;
@@ -840,6 +887,7 @@ function applyStandsMoveLocal(managerId, fromShop, toShop, stand, qty, newRecipi
       'Назва ТТ': to,
       'Адреса': newRecipientMeta?.address ?? '',
       'Місто': newRecipientMeta?.city ?? '',
+      'Область': newRecipientMeta?.oblast ?? '',
       'Коментар': newRecipientMeta?.comment ?? ''
     };
     nr[stand] = q;
@@ -866,6 +914,7 @@ function collectRowFromClientStandForm() {
     'Назва ТТ': String(document.getElementById('csf-shop-name')?.value ?? '').trim(),
     'Адреса': String(document.getElementById('csf-address')?.value ?? '').trim(),
     'Місто': String(document.getElementById('csf-city')?.value ?? '').trim(),
+    'Область': String(document.getElementById('csf-oblast')?.value ?? '').trim(),
     'Коментар': String(document.getElementById('csf-comment')?.value ?? '').trim()
   };
   document.querySelectorAll('#csf-stand-grid input[data-stand-col]').forEach(inp => {
@@ -899,16 +948,42 @@ function renderClientStandGridFromRow(row) {
   }
 }
 
-function getShopsForManager(managerId) {
+function getShopsForManager(managerId, oblast = '') {
   const data = cleanStandsMatrixRows(window.standsMatrixData?.[managerId] || []);
-  const shops = [...new Set(data.map(r => String(r['Назва ТТ'] ?? '').trim()).filter(Boolean))];
+  const shops = [...new Set(
+    data
+      .filter(r => {
+        if (!oblast) return true;
+        return String(r?.['Область'] ?? '').trim() === oblast;
+      })
+      .map(r => String(r['Назва ТТ'] ?? '').trim())
+      .filter(Boolean)
+  )];
   return shops.sort((a, b) => a.localeCompare(b, 'uk'));
 }
 
-function fillClientStandShopPick(managerId, selectedShop = '') {
+function getOblastsForManager(managerId) {
+  const data = cleanStandsMatrixRows(window.standsMatrixData?.[managerId] || []);
+  const oblasts = [...new Set(
+    data.map(r => String(r?.['Область'] ?? '').trim()).filter(Boolean)
+  )];
+  return oblasts.sort((a, b) => a.localeCompare(b, 'uk'));
+}
+
+function fillClientStandOblastPick(managerId, selectedOblast = '') {
+  const sel = document.getElementById('csf-oblast-pick');
+  if (!sel) return;
+  const oblasts = getOblastsForManager(managerId);
+  sel.innerHTML = '<option value="">Всі області</option>' +
+    oblasts.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('');
+  if (selectedOblast && oblasts.includes(selectedOblast)) sel.value = selectedOblast;
+  else sel.value = '';
+}
+
+function fillClientStandShopPick(managerId, selectedShop = '', oblast = '') {
   const sel = document.getElementById('csf-shop-pick');
   if (!sel) return;
-  const shops = getShopsForManager(managerId);
+  const shops = getShopsForManager(managerId, oblast);
   if (!shops.length) {
     sel.innerHTML = '<option value="">Немає клієнтів у матриці</option>';
     return;
@@ -949,9 +1024,11 @@ function fillClientStandMoveSelects(managerId) {
 function syncClientStandModeUi() {
   const mode = document.getElementById('csf-mode')?.value || 'new';
   const wrap = document.getElementById('csf-shop-pick-wrap');
+  const obWrap = document.getElementById('csf-oblast-pick-wrap');
   const delBtn = document.getElementById('csf-delete-btn');
   const orig = document.getElementById('csf-original-shop');
   if (wrap) wrap.style.display = mode === 'edit' ? '' : 'none';
+  if (obWrap) obWrap.style.display = mode === 'edit' ? '' : 'none';
   if (delBtn) delBtn.style.display = mode === 'edit' ? '' : 'none';
   if (mode === 'new' && orig) orig.value = '';
 }
@@ -967,6 +1044,7 @@ function loadClientStandEditorFromShop(managerId, shopName) {
   document.getElementById('csf-shop-name').value = String(row['Назва ТТ'] ?? '');
   document.getElementById('csf-address').value = String(row['Адреса'] ?? '');
   document.getElementById('csf-city').value = String(row['Місто'] ?? '');
+  document.getElementById('csf-oblast').value = String(row['Область'] ?? '');
   document.getElementById('csf-comment').value = String(row['Коментар'] ?? '');
   renderClientStandGridFromRow(row);
 }
@@ -980,7 +1058,7 @@ async function ensureClientStandTemplate(managerId) {
   }
   if (raw?.length) return getBlankStandsDataRow(managerId);
   const stands = await loadStandsList();
-  const row = { 'Назва ТТ': '', 'Адреса': '', 'Місто': '', 'Коментар': '' };
+  const row = { 'Назва ТТ': '', 'Адреса': '', 'Місто': '', 'Область': '', 'Коментар': '' };
   stands.forEach(name => {
     if (name) row[String(name)] = 0;
   });
@@ -1004,9 +1082,11 @@ async function openClientStandForm(managerId = 'andrii') {
   document.getElementById('csf-shop-name').value = '';
   document.getElementById('csf-address').value = '';
   document.getElementById('csf-city').value = '';
+  document.getElementById('csf-oblast').value = '';
   document.getElementById('csf-comment').value = '';
   renderClientStandGridFromRow(blank);
 
+  fillClientStandOblastPick(mid);
   fillClientStandShopPick(mid);
   fillClientStandMoveSelects(mid);
 }
@@ -1095,6 +1175,7 @@ async function onClientStandMoveClick() {
     newMeta = {
       address: String(document.getElementById('csf-move-new-address')?.value ?? '').trim(),
       city: String(document.getElementById('csf-move-new-city')?.value ?? '').trim(),
+      oblast: String(document.getElementById('csf-move-new-oblast')?.value ?? '').trim(),
       comment: ''
     };
     if (!toShop) {
@@ -1119,7 +1200,7 @@ async function onClientStandMoveClick() {
     quantity: qty,
     toIsNew: kind === 'new',
     toRow: newMeta
-      ? { 'Адреса': newMeta.address, 'Місто': newMeta.city, 'Коментар': newMeta.comment }
+      ? { 'Адреса': newMeta.address, 'Місто': newMeta.city, 'Область': newMeta.oblast, 'Коментар': newMeta.comment }
       : undefined
   };
 
@@ -1164,20 +1245,50 @@ async function loadStandsList() {
   return [];
 }
 
-async function loadShopsList(manager) {
-  // Повертає список ТТ лише для конкретного менеджера
+async function loadShopsList(manager, oblast = '') {
+  // Повертає список ТТ лише для конкретного менеджера (опційно фільтр по області)
   const data = await loadStandsMatrix(manager);
   const shops = new Set();
   data.forEach(row => {
     const shop = String(row['Назва ТТ'] ?? '').trim();
-    if (shop) shops.add(shop);
+    if (!shop) return;
+    const ob = String(row?.['Область'] ?? '').trim();
+    if (oblast && ob !== oblast) return;
+    shops.add(shop);
   });
   return Array.from(shops).sort();
 }
 
-async function fillShopSelect(selectElement, manager) {
+async function loadOblastList(manager) {
+  const data = await loadStandsMatrix(manager);
+  const set = new Set();
+  data.forEach(row => {
+    const ob = String(row?.['Область'] ?? '').trim();
+    if (ob) set.add(ob);
+  });
+  return Array.from(set).sort((a, b) => a.localeCompare(b, 'uk'));
+}
+
+async function fillOblastSelect(selectElement, manager) {
   try {
-    const shops = await loadShopsList(manager);
+    if (!selectElement) return;
+    if (!manager || !['andrii', 'roman', 'pavlo'].includes(manager)) {
+      selectElement.innerHTML = '<option value="">Оберіть менеджера</option>';
+      return;
+    }
+    const oblasts = await loadOblastList(manager);
+    selectElement.innerHTML =
+      '<option value="">Оберіть область</option>' +
+      oblasts.map(ob => `<option value="${escapeHtml(ob)}">${escapeHtml(ob)}</option>`).join('');
+  } catch (error) {
+    console.error('Помилка завантаження областей:', error);
+    if (selectElement) selectElement.innerHTML = '<option value="">Помилка завантаження</option>';
+  }
+}
+
+async function fillShopSelect(selectElement, manager, oblast = '') {
+  try {
+    const shops = await loadShopsList(manager, oblast);
     selectElement.innerHTML = '<option value="">Оберіть торгову точку</option>' +
       shops.map(shop => `<option value="${shop}">${shop}</option>`).join('');
   } catch (error) {
@@ -1260,7 +1371,7 @@ function buildStandsMatrix(data) {
   // Визначаємо всі заголовки
   const headers = Object.keys(data[0]);
   // Перші два — це "Назва ТТ" і "Адреса", решта — стенди
-  const mainCols = ['Назва ТТ', 'Адреса', 'Місто'];
+  const mainCols = ['Назва ТТ', 'Адреса', 'Місто', 'Область'];
   const standTypes = headers.filter(h => !mainCols.includes(h));
   let html = '<table class="data-table"><thead><tr>';
   mainCols.forEach(col => html += `<th>${col}</th>`);
@@ -1428,7 +1539,7 @@ function buildCurrentStandsStateFromMatrix(managerId) {
   const data = cleanStandsMatrixRows(raw);
   if (!data.length) return new Map();
   const headers = Object.keys(data[0] || {});
-  const standKeys = headers.filter(h => !['Назва ТТ', 'Адреса', 'Місто', 'Коментар'].includes(h));
+  const standKeys = headers.filter(h => !['Назва ТТ', 'Адреса', 'Місто', 'Область', 'Коментар'].includes(h));
   const state = new Map(); // shopKey -> Map(stand -> qty)
   data.forEach(row => {
     const shop = String(row?.['Назва ТТ'] ?? '').trim();
@@ -1772,7 +1883,7 @@ function renderAnalyticsTable() {
       // Підрахунок всіх стендів (сума по всіх клітинках, крім Назва ТТ і Адреса)
       const data = cleanStandsMatrixRows(window.standsMatrixData[manager]);
       const headers = Object.keys(data[0] || {});
-      const standTypes = headers.filter(h => !['Назва ТТ', 'Адреса', 'Місто', 'Коментар'].includes(h));
+      const standTypes = headers.filter(h => !['Назва ТТ', 'Адреса', 'Місто', 'Область', 'Коментар'].includes(h));
       standsCount = data.reduce((sum, row) => {
         return sum + standTypes.reduce((s, type) => s + (Number(row[type]) || 0), 0);
       }, 0);
@@ -1891,6 +2002,7 @@ function renderSalesReports() {
   const range = getSalesReportRangeFromUI();
   const sales = getSalesInRange(range, managerFilter);
   const shopToCity = buildShopCityIndex(managerFilter);
+  const shopToOblast = buildShopOblastIndex(managerFilter);
 
   // По клієнтам (торгова точка)
   const byClient = new Map();
@@ -1947,6 +2059,39 @@ function renderSalesReports() {
       return b.qty - a.qty;
     });
 
+  // По областях
+  const byOblast = new Map(); // oblast -> qty
+  const oblastTrademarkQty = new Map(); // oblast -> Map(trademark -> qty)
+  sales.forEach(row => {
+    const shop = String(row?.['Торгова точка'] ?? '').trim();
+    if (!shop) return;
+    const oblast =
+      String(row?.['Область'] ?? '').trim() ||
+      String(shopToOblast.get(shop) || '').trim() ||
+      'Невідомо';
+    byOblast.set(oblast, (byOblast.get(oblast) || 0) + numberOrZero(row['Кількість']));
+
+    const tm = reportTrademarkLabelFromSaleRow(row);
+    if (tm) {
+      if (!oblastTrademarkQty.has(oblast)) oblastTrademarkQty.set(oblast, new Map());
+      const m = oblastTrademarkQty.get(oblast);
+      m.set(tm, (m.get(tm) || 0) + numberOrZero(row['Кількість']));
+    }
+  });
+  const byOblastRows = [...byOblast.entries()]
+    .map(([oblast, qty]) => ({ oblast, qty }))
+    .sort((a, b) => b.qty - a.qty);
+
+  const oblastTrademarkRows = [...oblastTrademarkQty.entries()]
+    .flatMap(([oblast, m]) =>
+      [...m.entries()].map(([stand, qty]) => ({ oblast, stand, qty }))
+    )
+    .sort((a, b) => {
+      const o = a.oblast.localeCompare(b.oblast);
+      if (o !== 0) return o;
+      return b.qty - a.qty;
+    });
+
   buildSimpleTable(
     'sales-report-by-client',
     [
@@ -1990,6 +2135,27 @@ function renderSalesReports() {
     ],
     cityTrademarkRows,
     { title: `Торгові марки по містах — ${formatRangeLabel(range)} (${managerFilter === 'all' ? 'всі' : managerIdToName(managerFilter)})` }
+  );
+
+  buildSimpleTable(
+    'sales-report-by-oblast',
+    [
+      { key: 'oblast', label: 'Область' },
+      { key: 'qty', label: 'Продано, кв м', format: v => numberOrZero(v).toFixed(3) }
+    ],
+    byOblastRows,
+    { title: `По областях — ${formatRangeLabel(range)} (${managerFilter === 'all' ? 'всі' : managerIdToName(managerFilter)})` }
+  );
+
+  buildSimpleTable(
+    'sales-report-oblast-trademarks',
+    [
+      { key: 'oblast', label: 'Область' },
+      { key: 'stand', label: 'Торгова марка' },
+      { key: 'qty', label: 'Продано, кв м', format: v => numberOrZero(v).toFixed(3) }
+    ],
+    oblastTrademarkRows,
+    { title: `Торгові марки по областях — ${formatRangeLabel(range)} (${managerFilter === 'all' ? 'всі' : managerIdToName(managerFilter)})` }
   );
 }
 
@@ -2133,6 +2299,36 @@ function renderInstalledStandsReports() {
       return b.installed - a.installed;
     });
 
+  // Загалом по області
+  const byOblastTotal = new Map(); // oblast -> installed
+  placements.forEach(p => {
+    const oblast = String(p?.oblast ?? '').trim() || 'Невідомо';
+    byOblastTotal.set(oblast, (byOblastTotal.get(oblast) || 0) + numberOrZero(p.installed));
+  });
+  const byOblastTotalRows = [...byOblastTotal.entries()]
+    .map(([oblast, installed]) => ({ oblast, installed }))
+    .sort((a, b) => b.installed - a.installed);
+
+  // По області × стенд
+  const byOblastStand = new Map(); // key oblast||stand => installed
+  placements.forEach(p => {
+    const oblast = String(p?.oblast ?? '').trim() || 'Невідомо';
+    const stand = String(p?.stand ?? '').trim();
+    if (!stand) return;
+    const key = `${oblast}||${stand}`;
+    byOblastStand.set(key, (byOblastStand.get(key) || 0) + numberOrZero(p.installed));
+  });
+  const byOblastRows = [...byOblastStand.entries()]
+    .map(([key, installed]) => {
+      const [oblast, stand] = key.split('||');
+      return { oblast, stand, installed };
+    })
+    .sort((a, b) => {
+      const o = a.oblast.localeCompare(b.oblast);
+      if (o !== 0) return o;
+      return b.installed - a.installed;
+    });
+
   const who = managerFilter === 'all' ? 'всі' : managerIdToName(managerFilter);
 
   buildSimpleTable(
@@ -2175,6 +2371,27 @@ function renderInstalledStandsReports() {
     ],
     byCityRows,
     { title: `Стенди по містах — (${who})` }
+  );
+
+  buildSimpleTable(
+    'stands-installed-total-by-oblast',
+    [
+      { key: 'oblast', label: 'Область' },
+      { key: 'installed', label: 'Загальна к-сть встановлених', format: v => numberOrZero(v).toFixed(0) }
+    ],
+    byOblastTotalRows,
+    { title: `Всього стендів по областях — (${who})` }
+  );
+
+  buildSimpleTable(
+    'stands-installed-by-oblast',
+    [
+      { key: 'oblast', label: 'Область' },
+      { key: 'stand', label: 'Стенд (торгова марка)' },
+      { key: 'installed', label: 'К-сть встановлених', format: v => numberOrZero(v).toFixed(0) }
+    ],
+    byOblastRows,
+    { title: `Стенди по областях — (${who})` }
   );
 }
 
@@ -2408,11 +2625,23 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   const saleManagerSel = document.getElementById('sale-manager-select');
   const saleShopSel = document.getElementById('sale-shop-select');
-  if (saleManagerSel && saleShopSel) {
+  const saleOblastSel = document.getElementById('sale-oblast-select');
+  if (saleManagerSel && saleShopSel && saleOblastSel) {
     saleManagerSel.addEventListener('change', () => {
       const selectedName = String(saleManagerSel.value || '').trim();
       const id = managerNameToId(selectedName);
-      fillShopSelect(saleShopSel, ['andrii', 'roman', 'pavlo'].includes(id) ? id : null);
+      const mid = ['andrii', 'roman', 'pavlo'].includes(id) ? id : null;
+      fillOblastSelect(saleOblastSel, mid);
+      saleOblastSel.value = '';
+      fillShopSelect(saleShopSel, mid, '');
+    });
+
+    saleOblastSel.addEventListener('change', () => {
+      const selectedName = String(saleManagerSel.value || '').trim();
+      const id = managerNameToId(selectedName);
+      const mid = ['andrii', 'roman', 'pavlo'].includes(id) ? id : null;
+      const ob = String(saleOblastSel.value || '').trim();
+      fillShopSelect(saleShopSel, mid, ob);
     });
   }
 
@@ -2440,7 +2669,9 @@ document.addEventListener('DOMContentLoaded', async function() {
       const mid = csfManager?.value || 'andrii';
       if (csfMode.value === 'edit') {
         await ensureClientStandTemplate(mid);
-        fillClientStandShopPick(mid);
+        fillClientStandOblastPick(mid);
+        const ob = String(document.getElementById('csf-oblast-pick')?.value ?? '').trim();
+        fillClientStandShopPick(mid, '', ob);
         const first = document.getElementById('csf-shop-pick')?.value;
         if (first) loadClientStandEditorFromShop(mid, first);
         else document.getElementById('csf-original-shop').value = '';
@@ -2450,6 +2681,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.getElementById('csf-shop-name').value = '';
         document.getElementById('csf-address').value = '';
         document.getElementById('csf-city').value = '';
+        document.getElementById('csf-oblast').value = '';
         document.getElementById('csf-comment').value = '';
         renderClientStandGridFromRow(blank);
       }
@@ -2461,7 +2693,9 @@ document.addEventListener('DOMContentLoaded', async function() {
       const mid = csfManager.value;
       await ensureClientStandTemplate(mid);
       if (csfMode?.value === 'edit') {
-        fillClientStandShopPick(mid);
+        fillClientStandOblastPick(mid);
+        const ob = String(document.getElementById('csf-oblast-pick')?.value ?? '').trim();
+        fillClientStandShopPick(mid, '', ob);
         const first = document.getElementById('csf-shop-pick')?.value;
         if (first) loadClientStandEditorFromShop(mid, first);
       } else {
@@ -2469,11 +2703,24 @@ document.addEventListener('DOMContentLoaded', async function() {
         document.getElementById('csf-shop-name').value = '';
         document.getElementById('csf-address').value = '';
         document.getElementById('csf-city').value = '';
+        document.getElementById('csf-oblast').value = '';
         document.getElementById('csf-comment').value = '';
         const templateRow = (await ensureClientStandTemplate(mid)) || {};
         renderClientStandGridFromRow(templateRow);
       }
       fillClientStandMoveSelects(mid);
+    });
+  }
+
+  const csfOblastPick = document.getElementById('csf-oblast-pick');
+  if (csfOblastPick) {
+    csfOblastPick.addEventListener('change', () => {
+      const mid = csfManager?.value || 'andrii';
+      const ob = String(csfOblastPick.value || '').trim();
+      fillClientStandShopPick(mid, '', ob);
+      const first = document.getElementById('csf-shop-pick')?.value;
+      if (first) loadClientStandEditorFromShop(mid, first);
+      else document.getElementById('csf-original-shop').value = '';
     });
   }
 
