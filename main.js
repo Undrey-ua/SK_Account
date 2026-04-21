@@ -128,6 +128,11 @@ function getSelectedAnalyticsManagerId() {
   return sel ? sel.value : 'all';
 }
 
+function getSelectedCompareManagerId() {
+  const sel = document.getElementById('compare-manager');
+  return sel ? sel.value : 'all';
+}
+
 function normalizeManagerListFromFilter(managerFilter) {
   const allManagers = ['andrii', 'roman', 'pavlo'];
   if (!managerFilter || managerFilter === 'all') return allManagers;
@@ -1349,6 +1354,11 @@ function showTab(tabName, options = {}) {
     renderAnalyticsTable();
     renderAllNewAnalyticsBlocks();
   }
+  if (tabName === 'compare') {
+    toggleComparePeriodUI('a');
+    toggleComparePeriodUI('b');
+    renderComparePeriodTable();
+  }
   if (tabName === 'reserves') showReservesTab();
 };
 
@@ -1997,6 +2007,119 @@ function toggleSalesReportUI() {
   }
 }
 
+function safePct(delta, prev) {
+  const p = Number(prev);
+  if (!Number.isFinite(p) || p === 0) return null;
+  return (Number(delta) / p) * 100;
+}
+
+function fillComparePeriodSelectors() {
+  const now = new Date();
+  const months = [
+    'Січень','Лютий','Березень','Квітень','Травень','Червень',
+    'Липень','Серпень','Вересень','Жовтень','Листопад','Грудень'
+  ];
+
+  const aMonth = document.getElementById('compare-a-month');
+  const aQuarter = document.getElementById('compare-a-quarter');
+  const aYear = document.getElementById('compare-a-year');
+  const bMonth = document.getElementById('compare-b-month');
+  const bQuarter = document.getElementById('compare-b-quarter');
+  const bYear = document.getElementById('compare-b-year');
+  if (!aMonth || !aQuarter || !aYear || !bMonth || !bQuarter || !bYear) return;
+
+  const monthOptions = months.map((m, i) =>
+    `<option value="${i + 1}" ${i === now.getUTCMonth() ? 'selected' : ''}>${m}</option>`
+  ).join('');
+  aMonth.innerHTML = monthOptions;
+  bMonth.innerHTML = monthOptions;
+
+  const thisYear = now.getUTCFullYear();
+  const yearsHtml = [thisYear - 3, thisYear - 2, thisYear - 1, thisYear, thisYear + 1].map(y =>
+    `<option value="${y}" ${y === thisYear ? 'selected' : ''}>${y}</option>`
+  ).join('');
+  aYear.innerHTML = yearsHtml;
+  bYear.innerHTML = yearsHtml;
+
+  aQuarter.value = String(getQuarterForMonth(now.getUTCMonth() + 1));
+  bQuarter.value = String(getQuarterForMonth(now.getUTCMonth() + 1));
+}
+
+function toggleComparePeriodUI(side) {
+  const kind = document.getElementById('compare-kind')?.value || 'month';
+  const monthLabel = document.getElementById(`compare-${side}-month-label`);
+  const quarterLabel = document.getElementById(`compare-${side}-quarter-label`);
+  if (!monthLabel || !quarterLabel) return;
+  if (kind === 'month') {
+    monthLabel.style.display = '';
+    quarterLabel.style.display = 'none';
+  } else if (kind === 'quarter') {
+    monthLabel.style.display = 'none';
+    quarterLabel.style.display = '';
+  } else {
+    monthLabel.style.display = 'none';
+    quarterLabel.style.display = 'none';
+  }
+}
+
+function getCompareRangeFromUI(side) {
+  const kind = document.getElementById('compare-kind')?.value || 'month';
+  const month = Number(document.getElementById(`compare-${side}-month`)?.value || (new Date().getUTCMonth() + 1));
+  const quarter = Number(document.getElementById(`compare-${side}-quarter`)?.value || getQuarterForMonth(month));
+  const year = Number(document.getElementById(`compare-${side}-year`)?.value || new Date().getUTCFullYear());
+  if (kind === 'quarter') return getRangeForQuarter(quarter, year);
+  if (kind === 'year') return getRangeForYear(year);
+  return getRangeForMonth(month, year);
+}
+
+function renderComparePeriodTable() {
+  const managerFilter = getSelectedCompareManagerId();
+  const rangeA = getCompareRangeFromUI('a');
+  const rangeB = getCompareRangeFromUI('b');
+
+  const managerIds = normalizeManagerListFromFilter(managerFilter);
+  const rows = managerIds.map(mid => {
+    const aSales = getSalesInRange(rangeA, mid);
+    const bSales = getSalesInRange(rangeB, mid);
+    const aQty = aSales.reduce((s, r) => s + numberOrZero(r['Кількість']), 0);
+    const bQty = bSales.reduce((s, r) => s + numberOrZero(r['Кількість']), 0);
+    const delta = aQty - bQty;
+    const pct = safePct(delta, bQty);
+    return {
+      manager: managerIdToName(mid),
+      a: aQty,
+      b: bQty,
+      delta,
+      pct: pct == null ? '' : pct
+    };
+  });
+
+  const totalA = rows.reduce((s, r) => s + numberOrZero(r.a), 0);
+  const totalB = rows.reduce((s, r) => s + numberOrZero(r.b), 0);
+  const totalDelta = totalA - totalB;
+  const totalPct = safePct(totalDelta, totalB);
+  rows.push({
+    manager: 'Разом',
+    a: totalA,
+    b: totalB,
+    delta: totalDelta,
+    pct: totalPct == null ? '' : totalPct
+  });
+
+  buildSimpleTable(
+    'compare-period-table',
+    [
+      { key: 'manager', label: 'Менеджер' },
+      { key: 'b', label: `Період B (${formatRangeLabel(rangeB)})`, format: v => numberOrZero(v).toFixed(3) },
+      { key: 'a', label: `Період A (${formatRangeLabel(rangeA)})`, format: v => numberOrZero(v).toFixed(3) },
+      { key: 'delta', label: 'A − B, кв м', format: v => numberOrZero(v).toFixed(3) },
+      { key: 'pct', label: 'Δ, %', format: v => (v === '' ? '' : `${numberOrZero(v).toFixed(1)}%`) }
+    ],
+    rows,
+    { title: `Порівняння продажів: ${formatRangeLabel(rangeA)} vs ${formatRangeLabel(rangeB)}` }
+  );
+}
+
 function renderSalesReports() {
   const managerFilter = getSelectedAnalyticsManagerId();
   const range = getSalesReportRangeFromUI();
@@ -2460,6 +2583,13 @@ async function renderManagerTabs() {
   analyticsBtn.onclick = () => showTab('analytics');
   tabsContainer.appendChild(analyticsBtn);
 
+  const compareBtn = document.createElement('button');
+  compareBtn.className = 'tab-btn';
+  compareBtn.textContent = 'Порівняння періодів';
+  compareBtn.dataset.tab = 'compare';
+  compareBtn.onclick = () => showTab('compare');
+  tabsContainer.appendChild(compareBtn);
+
   const reservesBtn = document.createElement('button');
   reservesBtn.className = 'tab-btn';
   reservesBtn.textContent = 'Резерви';
@@ -2566,6 +2696,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   fillMonthYearSelects();
   fillAnalyticsMonthYearSelects();
   fillSalesReportSelectors();
+  fillComparePeriodSelectors();
 
   document.getElementById('analytics-month').addEventListener('change', () => {
     renderAnalyticsTable();
@@ -2588,6 +2719,9 @@ document.addEventListener('DOMContentLoaded', async function() {
 
   renderAnalyticsTable();
   renderAllNewAnalyticsBlocks();
+  toggleComparePeriodUI('a');
+  toggleComparePeriodUI('b');
+  renderComparePeriodTable();
 
   // Додаємо виклик showReservesTab при відкритті вкладки 'Резерви'
   // const origShowTab = window.showTab; // Це було перевизначення, яке видалено
@@ -2607,6 +2741,34 @@ document.addEventListener('DOMContentLoaded', async function() {
     el.addEventListener('change', () => {
       toggleSalesReportUI();
       renderSalesReports();
+    });
+  });
+
+  const compareManagerSel = document.getElementById('compare-manager');
+  const compareKindSel = document.getElementById('compare-kind');
+  const compareAMonthSel = document.getElementById('compare-a-month');
+  const compareAQuarterSel = document.getElementById('compare-a-quarter');
+  const compareAYearSel = document.getElementById('compare-a-year');
+  const compareBMonthSel = document.getElementById('compare-b-month');
+  const compareBQuarterSel = document.getElementById('compare-b-quarter');
+  const compareBYearSel = document.getElementById('compare-b-year');
+
+  if (compareKindSel) {
+    compareKindSel.addEventListener('change', () => {
+      toggleComparePeriodUI('a');
+      toggleComparePeriodUI('b');
+      renderComparePeriodTable();
+    });
+  }
+
+  [
+    compareManagerSel,
+    compareAMonthSel, compareAQuarterSel, compareAYearSel,
+    compareBMonthSel, compareBQuarterSel, compareBYearSel
+  ].forEach(el => {
+    if (!el) return;
+    el.addEventListener('change', () => {
+      renderComparePeriodTable();
     });
   });
 
