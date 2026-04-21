@@ -19,6 +19,7 @@
             <button class="tab-btn" data-tab="roman" onclick="showTab('roman')">Роман (Дніпро)</button>
             <button class="tab-btn" data-tab="pavlo" onclick="showTab('pavlo')">Павло (Захід)</button>
             <button class="tab-btn" data-tab="analytics" onclick="showTab('analytics')">Порівняльна аналітика</button>
+            <button class="tab-btn" data-tab="compare" onclick="showTab('compare')">Порівняння періодів</button>
             <button class="tab-btn" data-tab="reserves" onclick="showTab('reserves')">Резерви</button>
         </div>
         
@@ -182,7 +183,7 @@
         
         <div id="analytics" class="tab-content">
             <h2>Порівняльна аналітика</h2>
-            <div class="analytics-period-selectors period-selectors">
+            <div class="analytics-period-selectors period-selectors compare-selectors">
               <label>Менеджер:
                 <select id="analytics-manager">
                     <option value="all">Всі</option>
@@ -214,7 +215,7 @@
             </div>
 
             <h3>Звіт продажів (місяць / квартал / рік)</h3>
-            <div class="analytics-period-selectors period-selectors" style="margin-top: 10px;">
+            <div class="analytics-period-selectors period-selectors compare-selectors" style="margin-top: 10px;">
               <label>Період:
                 <select id="sales-report-period">
                     <option value="month" selected>Місяць</option>
@@ -258,6 +259,73 @@
 
             <h3>Стенди, що не спрацювали за квартал та пів року</h3>
             <div id="stands-not-worked"></div>
+        </div>
+
+        <div id="compare" class="tab-content">
+            <h2>Порівняння періодів</h2>
+            <div class="compare-controls">
+              <div class="compare-top period-selectors">
+                <label>Менеджер
+                  <select id="compare-manager">
+                      <option value="all" selected>Всі</option>
+                      <option value="andrii">Андрій</option>
+                      <option value="roman">Роман</option>
+                      <option value="pavlo">Павло</option>
+                  </select>
+                </label>
+                <label>Тип періоду
+                  <select id="compare-kind">
+                      <option value="month" selected>Місяць</option>
+                      <option value="quarter">Квартал</option>
+                      <option value="year">Рік</option>
+                  </select>
+                </label>
+              </div>
+
+              <div class="compare-grid">
+                <div class="compare-group">
+                  <div class="compare-group-title">Період A</div>
+                  <div class="compare-group-fields period-selectors">
+                    <label id="compare-a-month-label">Місяць
+                      <select id="compare-a-month"></select>
+                    </label>
+                    <label id="compare-a-quarter-label" style="display:none;">Квартал
+                      <select id="compare-a-quarter">
+                          <option value="1">Q1</option>
+                          <option value="2">Q2</option>
+                          <option value="3">Q3</option>
+                          <option value="4">Q4</option>
+                      </select>
+                    </label>
+                    <label>Рік
+                      <select id="compare-a-year"></select>
+                    </label>
+                  </div>
+                </div>
+
+                <div class="compare-group">
+                  <div class="compare-group-title">Період B</div>
+                  <div class="compare-group-fields period-selectors">
+                    <label id="compare-b-month-label">Місяць
+                      <select id="compare-b-month"></select>
+                    </label>
+                    <label id="compare-b-quarter-label" style="display:none;">Квартал
+                      <select id="compare-b-quarter">
+                          <option value="1">Q1</option>
+                          <option value="2">Q2</option>
+                          <option value="3">Q3</option>
+                          <option value="4">Q4</option>
+                      </select>
+                    </label>
+                    <label>Рік
+                      <select id="compare-b-year"></select>
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div id="compare-period-table"></div>
         </div>
         
         <div id="reserves" class="tab-content">
