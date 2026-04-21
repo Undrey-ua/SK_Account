@@ -242,6 +242,8 @@
             <div id="analytics-sales-matrix"></div>
             <div id="sales-report-by-city"></div>
             <div id="sales-report-city-trademarks"></div>
+            <div id="sales-report-by-oblast"></div>
+            <div id="sales-report-oblast-trademarks"></div>
 
             <h3>Спрацювали в поточному місяці (live)</h3>
             <div id="stands-worked-current-month"></div>
@@ -251,6 +253,8 @@
             <div id="stands-installed-by-manager"></div>
             <div id="stands-installed-total-by-city"></div>
             <div id="stands-installed-by-city"></div>
+            <div id="stands-installed-total-by-oblast"></div>
+            <div id="stands-installed-by-oblast"></div>
 
             <h3>Стенди, що не спрацювали за квартал та пів року</h3>
             <div id="stands-not-worked"></div>
@@ -295,6 +299,13 @@
                             <option value="Андрій">Андрій</option>
                             <option value="Роман">Роман</option>
                             <option value="Павло">Павло</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="sale-oblast-select">Область:</label>
+                        <select id="sale-oblast-select" name="oblast" required>
+                            <option value="">Оберіть область</option>
                         </select>
                     </div>
                     
@@ -377,6 +388,10 @@
                         <label for="csf-shop-pick">Оберіть клієнта</label>
                         <select id="csf-shop-pick"></select>
                     </div>
+                    <div class="form-group" id="csf-oblast-pick-wrap" style="display:none;">
+                        <label for="csf-oblast-pick">Область</label>
+                        <select id="csf-oblast-pick"></select>
+                    </div>
                     <div class="form-group">
                         <label for="csf-shop-name">Назва ТТ</label>
                         <input type="text" id="csf-shop-name" required autocomplete="off" />
@@ -388,6 +403,10 @@
                     <div class="form-group">
                         <label for="csf-city">Місто</label>
                         <input type="text" id="csf-city" autocomplete="off" />
+                    </div>
+                    <div class="form-group">
+                        <label for="csf-oblast">Область</label>
+                        <input type="text" id="csf-oblast" autocomplete="off" />
                     </div>
                     <div class="form-group">
                         <label for="csf-comment">Коментар</label>
@@ -441,6 +460,10 @@
                         <div class="form-group">
                             <label for="csf-move-new-city">Місто</label>
                             <input type="text" id="csf-move-new-city" autocomplete="off" />
+                        </div>
+                        <div class="form-group">
+                            <label for="csf-move-new-oblast">Область</label>
+                            <input type="text" id="csf-move-new-oblast" autocomplete="off" />
                         </div>
                     </div>
                     <div class="form-actions csf-move-actions">
