@@ -3,7 +3,7 @@ let rawSalesData = [];
 let rawMonthlyPlansData = [];
 
 // === Apps Script endpoint (читання/запис) ===
-const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbxXOu6h3KboPxrCOBFzcKuLDt8DYO34IRBAOeQrZQ5hMm0k4wX_u9ikrjr5MYQDLkNV/exec';
+const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbyY2eAgY0uZ6NO8IMZn2JQU09uyhOQ16xbkb4FluP0ZB2PzEEn062PHHNKvyl6j_13t/exec';
 const MONTHLY_PLAN_SHEET_NAME = 'План продажів';
 
 // === Аналітика: утиліти дат/періодів ===
@@ -925,6 +925,8 @@ function collectRowFromClientStandForm() {
   document.querySelectorAll('#csf-stand-grid input[data-stand-col]').forEach(inp => {
     const col = inp.getAttribute('data-stand-col');
     if (!col) return;
+    // Захист: мета-поля (напр. «Область») не повинні перезаписуватись числами
+    if (STANDS_MATRIX_META_KEYS.includes(col)) return;
     row[col] = numberOrZero(inp.value);
   });
   return row;
