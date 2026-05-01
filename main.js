@@ -1,10 +1,12 @@
 // === Глобальна змінна для сирих продажів ===
 let rawSalesData = [];
 let rawMonthlyPlansData = [];
+let rawMonthlyTasksData = [];
 
 // === Apps Script endpoint (читання/запис) ===
 const APPS_SCRIPT_BASE_URL = 'https://script.google.com/macros/s/AKfycbyY2eAgY0uZ6NO8IMZn2JQU09uyhOQ16xbkb4FluP0ZB2PzEEn062PHHNKvyl6j_13t/exec';
 const MONTHLY_PLAN_SHEET_NAME = 'План продажів';
+const MONTHLY_TASKS_SHEET_NAME = 'План задач';
 
 // === Аналітика: утиліти дат/періодів ===
 function parseSaleDateUTC(value) {
@@ -1322,6 +1324,12 @@ async function loadMonthlyPlans() {
   console.log('rawMonthlyPlansData:', rawMonthlyPlansData);
 }
 
+async function loadMonthlyTasks() {
+  const data = await fetchSheet(MONTHLY_TASKS_SHEET_NAME);
+  rawMonthlyTasksData = Array.isArray(data) ? data : [];
+  console.log('rawMonthlyTasksData:', rawMonthlyTasksData);
+}
+
 function setActiveTabButton(tabName) {
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
   const btn = document.querySelector(`.tab-btn[data-tab="${CSS.escape(tabName)}"]`);
@@ -1757,6 +1765,94 @@ async function saveMonthlyPlanSqm(manager, month, year, value) {
   }
 }
 
+function createTaskId() {
+  // Достатньо стабільно для локального UI/таблиці (без довгих хешів)
+  return `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeTaskType(type) {
+  const t = String(type ?? '').trim().toLowerCase();
+  if (t === 'install' || t.includes('нов')) return 'install';
+  if (t === 'move' || t.includes('перем')) return 'move';
+  return 'other';
+}
+
+function taskTypeLabel(type) {
+  const t = normalizeTaskType(type);
+  if (t === 'install') return 'Нові стенди (установка)';
+  if (t === 'move') return 'Переміщення стендів';
+  return 'Інші задачі';
+}
+
+function getMonthlyTasks(manager, month, year) {
+  const managerName = managerIdToName(manager);
+  const rows = Array.isArray(rawMonthlyTasksData) ? rawMonthlyTasksData : [];
+
+  // Події можуть дублюватись (append-only). Беремо останній стан по task_id.
+  const map = new Map(); // task_id -> task
+  for (const row of rows) {
+    const rowManager = String(row['Менеджер'] ?? '').trim();
+    const rowMonth = Number(row['Місяць'] ?? '');
+    const rowYear = Number(row['Рік'] ?? '');
+    if (rowManager !== managerName) continue;
+    if (rowMonth !== month) continue;
+    if (rowYear !== year) continue;
+
+    const id = String(row['task_id'] ?? row['TaskId'] ?? row['ID'] ?? '').trim();
+    if (!id) continue;
+    const deleted = String(row['deleted'] ?? row['Deleted'] ?? '').trim();
+    const isDeleted = deleted === '1' || deleted.toLowerCase() === 'true' || deleted.toLowerCase() === 'yes';
+    if (isDeleted) {
+      map.delete(id);
+      continue;
+    }
+    const doneRaw = row['done'] ?? row['Done'] ?? row['Виконано'] ?? row['Готово'];
+    const done =
+      doneRaw === true ||
+      doneRaw === 1 ||
+      String(doneRaw ?? '').trim() === '1' ||
+      String(doneRaw ?? '').trim().toLowerCase() === 'true' ||
+      String(doneRaw ?? '').trim().toLowerCase() === 'так';
+
+    map.set(id, {
+      id,
+      type: normalizeTaskType(row['Тип'] ?? row['type']),
+      text: String(row['Задача'] ?? row['Task'] ?? '').trim(),
+      done
+    });
+  }
+
+  const tasks = Array.from(map.values()).filter(t => t.text);
+  tasks.sort((a, b) => {
+    // Спочатку невиконані
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return a.text.localeCompare(b.text, 'uk');
+  });
+  return tasks;
+}
+
+async function appendMonthlyTaskEvent(manager, month, year, event) {
+  const payload = {
+    'Менеджер': managerIdToName(manager),
+    'Місяць': month,
+    'Рік': year,
+    'task_id': event.task_id,
+    'Тип': event.type, // install | move | other
+    'Задача': event.text ?? '',
+    'done': event.done ? 1 : 0,
+    'deleted': event.deleted ? 1 : 0,
+    'Оновлено': new Date().toISOString()
+  };
+
+  // оптимістично в кеш
+  rawMonthlyTasksData = Array.isArray(rawMonthlyTasksData) ? rawMonthlyTasksData : [];
+  rawMonthlyTasksData.push(payload);
+
+  const url = `${APPS_SCRIPT_BASE_URL}?sheet=${encodeURIComponent(MONTHLY_TASKS_SHEET_NAME)}`;
+  const bodyJson = JSON.stringify(payload);
+  await fetch(url, { method: 'POST', mode: 'no-cors', body: bodyJson });
+}
+
 function renderMonthlyGoalsForManager(manager) {
   const container = document.getElementById(`${manager}-goals`);
   if (!container) return;
@@ -1768,41 +1864,103 @@ function renderMonthlyGoalsForManager(manager) {
   const percentClamped = Math.max(0, Math.min(100, percent));
   const progressClass = percent >= 100 ? 'progress-fill done' : (percent >= 80 ? 'progress-fill near' : 'progress-fill');
 
+  const tasks = getMonthlyTasks(manager, month, year);
+  const totalTasks = tasks.length;
+  const doneTasks = tasks.filter(t => t.done).length;
+  const tasksPct = totalTasks ? (doneTasks / totalTasks) * 100 : 0;
+  const tasksPctClamped = Math.max(0, Math.min(100, tasksPct));
+  const tasksProgressClass = tasksPct >= 100 ? 'progress-fill done' : (tasksPct >= 80 ? 'progress-fill near' : 'progress-fill');
+
+  const tasksByType = {
+    install: tasks.filter(t => t.type === 'install'),
+    move: tasks.filter(t => t.type === 'move'),
+    other: tasks.filter(t => t.type === 'other')
+  };
+
+  const renderTaskList = (type) => {
+    const list = tasksByType[type] || [];
+    if (!list.length) return `<div class="tasks-empty">Немає задач</div>`;
+    return `
+      <div class="tasks-list">
+        ${list.map(t => `
+          <div class="task-item" data-task-id="${escapeHtml(t.id)}">
+            <label class="task-check">
+              <input type="checkbox" class="task-toggle" data-task-id="${escapeHtml(t.id)}" ${t.done ? 'checked' : ''} />
+              <span class="task-text ${t.done ? 'done' : ''}">${escapeHtml(t.text)}</span>
+            </label>
+            <button type="button" class="task-del" title="Видалити" data-task-id="${escapeHtml(t.id)}">×</button>
+          </div>
+        `).join('')}
+      </div>
+    `;
+  };
+
   container.innerHTML = `
-    <div class="goal-card">
-      <div class="goal-title">План продажів (кв м)</div>
-      <div class="goal-row">
-        <label class="goal-label" for="${manager}-monthly-plan-input">План:</label>
-        <input
-          id="${manager}-monthly-plan-input"
-          class="goal-input"
-          type="number"
-          inputmode="numeric"
-          min="0"
-          step="1"
-          value="${Number.isFinite(plan) && plan > 0 ? String(Math.trunc(plan)) : ''}"
-          placeholder="Напр., 120"
-          data-manager="${manager}"
-          data-month="${month}"
-          data-year="${year}"
-          data-original="${Number.isFinite(plan) ? String(Math.trunc(plan)) : ''}"
-        />
-        <button
-          type="button"
-          class="goal-save-btn"
-          data-manager="${manager}"
-          data-month="${month}"
-          data-year="${year}"
-          disabled
-        >Зберегти</button>
+    <div class="goals-columns">
+      <div class="goals-col goals-col-left">
+        <div class="goal-card">
+          <div class="goal-title">План продажів (кв м)</div>
+          <div class="goal-row">
+            <label class="goal-label" for="${manager}-monthly-plan-input">План:</label>
+            <input
+              id="${manager}-monthly-plan-input"
+              class="goal-input"
+              type="number"
+              inputmode="numeric"
+              min="0"
+              step="1"
+              value="${Number.isFinite(plan) && plan > 0 ? String(Math.trunc(plan)) : ''}"
+              placeholder="Напр., 120"
+              data-manager="${manager}"
+              data-month="${month}"
+              data-year="${year}"
+              data-original="${Number.isFinite(plan) ? String(Math.trunc(plan)) : ''}"
+            />
+            <button
+              type="button"
+              class="goal-save-btn"
+              data-manager="${manager}"
+              data-month="${month}"
+              data-year="${year}"
+              disabled
+            >Зберегти</button>
+          </div>
+          <div class="progress-bar" role="progressbar" aria-valuenow="${Math.round(percent)}" aria-valuemin="0" aria-valuemax="100">
+            <div class="${progressClass}" style="width: ${percentClamped.toFixed(1)}%">${plan > 0 ? `${Math.round(percent)}%` : ''}</div>
+          </div>
+          <div class="goal-meta">
+            <span>Факт: <b>${fact.toFixed(2)}</b></span>
+            <span>План: <b>${plan ? plan.toFixed(2) : '—'}</b></span>
+            <span>Виконання: <b>${plan > 0 ? `${Math.round(percent)}%` : '—'}</b></span>
+          </div>
+        </div>
       </div>
-      <div class="progress-bar" role="progressbar" aria-valuenow="${Math.round(percent)}" aria-valuemin="0" aria-valuemax="100">
-        <div class="${progressClass}" style="width: ${percentClamped.toFixed(1)}%">${plan > 0 ? `${Math.round(percent)}%` : ''}</div>
-      </div>
-      <div class="goal-meta">
-        <span>Факт: <b>${fact.toFixed(2)}</b></span>
-        <span>План: <b>${plan ? plan.toFixed(2) : '—'}</b></span>
-        <span>Виконання: <b>${plan > 0 ? `${Math.round(percent)}%` : '—'}</b></span>
+
+      <div class="goals-col goals-col-right">
+        <div class="goal-card">
+          <div class="goal-title">Задачі на місяць</div>
+          <div class="progress-bar" role="progressbar" aria-valuenow="${Math.round(tasksPct)}" aria-valuemin="0" aria-valuemax="100">
+            <div class="${tasksProgressClass}" style="width: ${tasksPctClamped.toFixed(1)}%">${totalTasks ? `${doneTasks}/${totalTasks}` : ''}</div>
+          </div>
+          <div class="goal-meta">
+            <span>Виконано: <b>${doneTasks}</b></span>
+            <span>Всього: <b>${totalTasks}</b></span>
+            <span>Прогрес: <b>${totalTasks ? `${Math.round(tasksPct)}%` : '—'}</b></span>
+          </div>
+
+          <div class="tasks-block" data-manager="${manager}" data-month="${month}" data-year="${year}">
+            ${['install','move','other'].map(type => `
+              <div class="tasks-group" data-task-type="${type}">
+                <div class="tasks-group-title">${escapeHtml(taskTypeLabel(type))}</div>
+                <div class="tasks-add-row">
+                  <input class="tasks-add-input" type="text" placeholder="Додати задачу..." maxlength="180" />
+                  <button type="button" class="tasks-add-btn">Додати</button>
+                </div>
+                ${renderTaskList(type)}
+              </div>
+            `).join('')}
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -1857,6 +2015,106 @@ function renderMonthlyGoalsForManager(manager) {
       // Перерендер з актуальним планом з бекенду
       renderMonthlyGoalsForManager(m);
       showNotification('План продажів збережено.', 'success');
+    });
+  }
+
+  // === Tasks handlers ===
+  const tasksRoot = container.querySelector('.tasks-block');
+  if (tasksRoot) {
+    const m = String(tasksRoot.getAttribute('data-manager') || '').trim();
+    const mm = Number(tasksRoot.getAttribute('data-month'));
+    const yy = Number(tasksRoot.getAttribute('data-year'));
+
+    tasksRoot.querySelectorAll('.tasks-group').forEach(group => {
+      const type = String(group.getAttribute('data-task-type') || 'other').trim();
+      const inputEl = group.querySelector('input.tasks-add-input');
+      const addBtn = group.querySelector('button.tasks-add-btn');
+      if (!inputEl || !addBtn) return;
+
+      const doAdd = async () => {
+        const text = String(inputEl.value ?? '').trim();
+        if (!text) return;
+        addBtn.disabled = true;
+        inputEl.disabled = true;
+        try {
+          await appendMonthlyTaskEvent(m, mm, yy, {
+            task_id: createTaskId(),
+            type,
+            text,
+            done: false,
+            deleted: false
+          });
+          await new Promise(r => setTimeout(r, 500));
+          await loadMonthlyTasks();
+          renderMonthlyGoalsForManager(m);
+          showNotification('Задачу додано.', 'success');
+        } catch (e) {
+          console.error('Помилка при додаванні задачі:', e);
+          showNotification(`Помилка при додаванні задачі: ${e.message || e}`, 'error');
+          addBtn.disabled = false;
+          inputEl.disabled = false;
+        }
+      };
+
+      addBtn.addEventListener('click', doAdd);
+      inputEl.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          doAdd();
+        }
+      });
+    });
+
+    tasksRoot.querySelectorAll('input.task-toggle').forEach(chk => {
+      chk.addEventListener('change', async () => {
+        const taskId = String(chk.getAttribute('data-task-id') || '').trim();
+        if (!taskId) return;
+        chk.disabled = true;
+        try {
+          // знайдемо поточний текст/тип з поточного стану
+          const current = getMonthlyTasks(m, mm, yy).find(t => t.id === taskId);
+          await appendMonthlyTaskEvent(m, mm, yy, {
+            task_id: taskId,
+            type: current?.type || 'other',
+            text: current?.text || '',
+            done: chk.checked,
+            deleted: false
+          });
+          await new Promise(r => setTimeout(r, 500));
+          await loadMonthlyTasks();
+          renderMonthlyGoalsForManager(m);
+        } catch (e) {
+          console.error('Помилка при оновленні задачі:', e);
+          showNotification(`Помилка при оновленні задачі: ${e.message || e}`, 'error');
+          chk.disabled = false;
+        }
+      });
+    });
+
+    tasksRoot.querySelectorAll('button.task-del').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const taskId = String(btn.getAttribute('data-task-id') || '').trim();
+        if (!taskId) return;
+        btn.disabled = true;
+        try {
+          const current = getMonthlyTasks(m, mm, yy).find(t => t.id === taskId);
+          await appendMonthlyTaskEvent(m, mm, yy, {
+            task_id: taskId,
+            type: current?.type || 'other',
+            text: current?.text || '',
+            done: false,
+            deleted: true
+          });
+          await new Promise(r => setTimeout(r, 500));
+          await loadMonthlyTasks();
+          renderMonthlyGoalsForManager(m);
+          showNotification('Задачу видалено.', 'success');
+        } catch (e) {
+          console.error('Помилка при видаленні задачі:', e);
+          showNotification(`Помилка при видаленні задачі: ${e.message || e}`, 'error');
+          btn.disabled = false;
+        }
+      });
     });
   }
 }
@@ -2816,6 +3074,7 @@ document.addEventListener('DOMContentLoaded', async function() {
   (async function initSalesMatrices() {
     await loadRawSales();
     await loadMonthlyPlans();
+    await loadMonthlyTasks();
     ['andrii', 'roman', 'pavlo'].forEach(manager => {
       renderSalesTableForManager(manager);
       updateManagerStats(manager); // <-- це є!
